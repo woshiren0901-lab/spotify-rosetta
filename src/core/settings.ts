@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: RosettaSettings = {
   showPartial: true,
   showUnsynced: true,
   wordHighlight: true,
+  showNowPlayingFallback: true,
   cacheLimit: 500,
   providers: {
     netease: true,
@@ -58,6 +59,8 @@ export function normalizeSettings(value: unknown): RosettaSettings {
     showPartial: input.showPartial ?? DEFAULT_SETTINGS.showPartial,
     showUnsynced: input.showUnsynced ?? DEFAULT_SETTINGS.showUnsynced,
     wordHighlight: input.wordHighlight ?? DEFAULT_SETTINGS.wordHighlight,
+    showNowPlayingFallback:
+      input.showNowPlayingFallback ?? DEFAULT_SETTINGS.showNowPlayingFallback,
     cacheLimit: Math.max(
       50,
       Math.min(2_000, Number(input.cacheLimit) || DEFAULT_SETTINGS.cacheLimit),

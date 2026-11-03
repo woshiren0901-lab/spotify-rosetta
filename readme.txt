@@ -1,4 +1,4 @@
-Spotify Rosetta v0.3.1
+Spotify Rosetta v0.4.1
 ======================
 
 Spotify Rosetta 是一个 Windows 自用 Spicetify Extension。它保留 Spotify
@@ -28,6 +28,8 @@ Spotify Rosetta 是一个 Windows 自用 Spicetify Extension。它保留 Spotify
 ----
 
 - 同时覆盖 Spotify 右侧歌词和放大歌词页，不创建独立悬浮歌词窗口。
+- Spotify 没有原生歌词区或明确显示暂无歌词时，会在右侧 Now Playing 面板
+  中创建双语回退面板；原生歌词存在时不会重复显示。
 - 原文和译文必须来自同一个 Provider，不会跨平台拼接歌词。
 - 首选逐字同步，其次逐行同步，最后显示整段非同步译文。
 - 来源带字级时间轴时，当前译文片段会随播放进度渐亮。
@@ -98,6 +100,8 @@ Spotify Rosetta 是一个 Windows 自用 Spicetify Extension。它保留 Spotify
 - 原文：没有任何现成译文时，不修改 Spotify 原生歌词。
 - 第三方回退：Spotify 显示“暂无歌词”或等价空状态，而第三方找到同源
   双语内容时，会在 Spotify 原生歌词容器内显示带来源标识的第三方歌词。
+- Now Playing 回退：Spotify 连歌词容器都不创建时，在右侧面板的歌曲信息
+  下方创建 Rosetta 双语歌词区，并跟随播放进度高亮当前行。
 
 来源与匹配
 ----------
@@ -303,4 +307,8 @@ https://www.gnu.org/licenses/gpl-3.0.txt
     （https://tonyliu0936.pixnet.net/blog/posts/14217066080）：
     We Didn't Start the Fire 人工中英对照译文来源；文章与译文权利归原作者，
     本项目仅保存 URL 并在本机运行时读取，不随项目再分发正文。
+18. abesanets/spicetify-sidebar-lyrics
+    （https://github.com/abesanets/spicetify-sidebar-lyrics）：Spotify Now
+    Playing 面板中创建独立歌词区域的思路参考；该仓库未声明 LICENSE，本项目
+    仅参考公开行为与 DOM 生命周期，不复制其源码。
 

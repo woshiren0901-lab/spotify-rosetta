@@ -34,6 +34,7 @@ import {
   saveSettings,
 } from "../core/settings";
 import { NativeLyricsRenderer } from "../dom/nativeLyrics";
+import { NowPlayingPanelRenderer } from "../dom/nowPlayingPanel";
 import {
   createDefaultProviders,
   searchProvider,
@@ -114,6 +115,7 @@ function statusTextFor(result: ProviderResult | undefined): string {
 export class RosettaController {
   private readonly cache: RosettaCache;
   private readonly renderer: NativeLyricsRenderer;
+  private readonly nowPlayingRenderer: NowPlayingPanelRenderer;
   private readonly providers: LyricsProvider[];
   private readonly listeners = new Set<UpdateListener>();
   private readonly cooldowns = new Map<ProviderId, number>();
@@ -135,9 +137,11 @@ export class RosettaController {
   constructor(
     providers: LyricsProvider[] = createDefaultProviders(),
     renderer: NativeLyricsRenderer = new NativeLyricsRenderer(),
+    nowPlayingRenderer: NowPlayingPanelRenderer = new NowPlayingPanelRenderer(),
   ) {
     this.providers = providers;
     this.renderer = renderer;
+    this.nowPlayingRenderer = nowPlayingRenderer;
     this.settings = loadSettings();
     this.cache = new RosettaCache(
       "spotify-rosetta",
@@ -149,6 +153,7 @@ export class RosettaController {
     if (this.started) return;
     this.started = true;
     this.renderer.start();
+    this.nowPlayingRenderer.start();
     const player = window.Spicetify?.Player;
     player?.addEventListener?.("songchange", this.handleSongChange);
     player?.addEventListener?.("appchange", this.handleSongChange);
@@ -166,6 +171,7 @@ export class RosettaController {
       const progress = window.Spicetify?.Player?.getProgress?.();
       if (typeof progress === "number" && Number.isFinite(progress)) {
         this.renderer.setProgress(progress);
+        this.nowPlayingRenderer.setProgress(progress);
       }
     }, 50);
 
@@ -192,6 +198,7 @@ export class RosettaController {
     this.pollTimer = undefined;
     this.progressTimer = undefined;
     this.renderer.dispose();
+    this.nowPlayingRenderer.dispose();
     void this.cache.close();
   }
 
@@ -237,6 +244,14 @@ export class RosettaController {
       settings: this.settings,
       result: this.currentResult,
       nativeLines: this.currentNativeLines,
+      statusText: this.statusText,
+      loading: this.loading,
+    });
+    this.nowPlayingRenderer.setState({
+      enabled: this.settings.enabled,
+      settings: this.settings,
+      track: this.currentTrack,
+      result: this.currentResult,
       statusText: this.statusText,
       loading: this.loading,
     });
@@ -381,6 +396,13 @@ export class RosettaController {
       enabled: this.settings.enabled,
       settings: this.settings,
       nativeLines: this.currentNativeLines,
+      loading: false,
+      statusText: message,
+    });
+    this.nowPlayingRenderer.setState({
+      enabled: this.settings.enabled,
+      settings: this.settings,
+      track: this.currentTrack,
       loading: false,
       statusText: message,
     });
@@ -663,6 +685,13 @@ export class RosettaController {
         loading: false,
         statusText: this.statusText,
       });
+      this.nowPlayingRenderer.setState({
+        enabled: this.settings.enabled,
+        settings: this.settings,
+        track,
+        loading: false,
+        statusText: this.statusText,
+      });
       this.emit();
       if (!aliasRetry) {
         window.setTimeout(() => {
@@ -722,6 +751,14 @@ export class RosettaController {
       settings: this.settings,
       result: this.currentResult,
       nativeLines: this.currentNativeLines,
+      loading: this.loading,
+      statusText: this.statusText,
+    });
+    this.nowPlayingRenderer.setState({
+      enabled: this.settings.enabled,
+      settings: this.settings,
+      track: this.currentTrack,
+      result: this.currentResult,
       loading: this.loading,
       statusText: this.statusText,
     });

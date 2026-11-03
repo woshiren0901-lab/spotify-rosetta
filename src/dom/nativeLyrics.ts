@@ -299,6 +299,7 @@ export class NativeLyricsRenderer {
       showPartial: true,
       showUnsynced: true,
       wordHighlight: true,
+      showNowPlayingFallback: true,
       cacheLimit: 500,
       providers: {
         netease: true,

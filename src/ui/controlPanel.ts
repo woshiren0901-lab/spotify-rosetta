@@ -313,6 +313,17 @@ export class ControlPanel {
           void this.controller.updateSettings({ wordHighlight: checked }),
       ),
     );
+    body.appendChild(
+      this.switchRow(
+        "无原生歌词时显示 Now Playing 译文",
+        "Spotify 没有原生歌词区或显示暂无歌词时，在右侧 Now Playing 面板显示现成双语歌词。",
+        settings.showNowPlayingFallback,
+        (checked) =>
+          void this.controller.updateSettings({
+            showNowPlayingFallback: checked,
+          }),
+      ),
+    );
 
     body.appendChild(element("h3", "rosetta-section-title", "歌词来源"));
     const providerRows: Array<

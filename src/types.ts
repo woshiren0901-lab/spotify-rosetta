@@ -123,6 +123,7 @@ export interface RosettaSettings {
   showPartial: boolean;
   showUnsynced: boolean;
   wordHighlight: boolean;
+  showNowPlayingFallback: boolean;
   cacheLimit: number;
   providers: ProviderSettings;
 }
