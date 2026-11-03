@@ -1,9 +1,9 @@
 {
   "name": "spotify-rosetta",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "type": "module",
-  "description": "A Spicetify extension that adds existing Chinese lyric translations inside Spotify's native lyrics surfaces.",
+  "description": "A Spicetify extension that adds existing Chinese lyric translations inside Spotify and fills missing lyrics with verified same-source originals.",
   "license": "GPL-3.0-only",
   "dependencies": {
     "fflate": "^0.8.2"

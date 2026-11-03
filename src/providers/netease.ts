@@ -1,6 +1,7 @@
 import type {
   LyricsLine,
   ProviderCandidate,
+  ProviderFetchOptions,
   ProviderId,
   ProviderResult,
   TrackInfo,
@@ -180,6 +181,7 @@ async function buildResult(
   candidate: ProviderCandidate,
   track: TrackInfo,
   signal: AbortSignal,
+  options: ProviderFetchOptions = {},
 ): Promise<ProviderResult> {
   const response = asRecord(await fetchLyrics(candidate, signal));
   const originalText =
@@ -191,10 +193,11 @@ async function buildResult(
 
   const parsedOriginal = parseLrc(originalText);
   let lines: LyricsLine[] = parsedOriginal.lines;
+  const translationValue = readPath(response, ["tlyric"]);
   const translationText =
     asString(readPath(response, ["tlyric", "lyric"])) ||
-    asString(readPath(response, ["tlyric"]));
-  if (!translationText.trim()) {
+    (typeof translationValue === "string" ? translationValue : "");
+  if (!translationText.trim() && !options.allowOriginalOnly) {
     throw new Error("网易云条目没有 tlyric 现成译文。");
   }
   let unsyncedTranslation: string | undefined;
@@ -281,8 +284,9 @@ export class NeteaseProvider {
     candidate: ProviderCandidate,
     track: TrackInfo,
     signal: AbortSignal,
+    options?: ProviderFetchOptions,
   ): Promise<ProviderResult> {
-    return buildResult(candidate, track, signal);
+    return buildResult(candidate, track, signal, options);
   }
 }
 

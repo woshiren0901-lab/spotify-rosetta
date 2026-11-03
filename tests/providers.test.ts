@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   attachTranslations,
   parseRichsync,
@@ -6,6 +6,13 @@ import {
 } from "../src/providers/musixmatch";
 import { parseSpotifyLines } from "../src/providers/spotify";
 import { extractNewXmlValue } from "../src/providers/qq";
+import { NeteaseProvider } from "../src/providers/netease";
+import type { ProviderCandidate, TrackInfo } from "../src/types";
+
+afterEach(() => {
+  window.Spicetify = undefined;
+  vi.unstubAllGlobals();
+});
 
 describe("Musixmatch parsing", () => {
   it("parses richsync words and absolute times", () => {
@@ -91,6 +98,71 @@ describe("QQ detailed lyrics parsing", () => {
         "contentts",
       ),
     ).toBe("[00:01.00]现成译文");
+  });
+});
+
+describe("NetEase source fallback", () => {
+  const track: TrackInfo = {
+    id: "wu-bai-track",
+    uri: "spotify:track:wu-bai-track",
+    title: "挪威的森林",
+    artists: ["伍佰 & China Blue"],
+    album: "爱情的尽头",
+    durationMs: 391_026,
+  };
+  const candidate: ProviderCandidate = {
+    providerId: "netease",
+    sourceId: "157288",
+    title: track.title,
+    artists: track.artists,
+    album: track.album,
+    durationMs: track.durationMs,
+    sourceLabel: "网易云音乐",
+  };
+
+  function installChineseOriginalResponse(): void {
+    window.Spicetify = {
+      CosmosAsync: {
+        get: async () =>
+          ({
+            lrc: {
+              lyric:
+                "[00:35.149]让我将你心儿摘下\n[00:38.621]试着将它慢慢溶化",
+            },
+            tlyric: { lyric: "" },
+            klyric: { lyric: "" },
+          }) as never,
+        post: async () => {
+          throw new Error("unexpected POST");
+        },
+      },
+    };
+  }
+
+  it("keeps translation lookup strict by default", async () => {
+    installChineseOriginalResponse();
+    const provider = new NeteaseProvider();
+    await expect(
+      provider.fetch(candidate, track, new AbortController().signal),
+    ).rejects.toThrow("没有 tlyric 现成译文");
+  });
+
+  it("returns matching source lyrics for a missing-native fallback only when allowed", async () => {
+    installChineseOriginalResponse();
+    const provider = new NeteaseProvider();
+    const result = await provider.fetch(
+      candidate,
+      track,
+      new AbortController().signal,
+      { allowOriginalOnly: true },
+    );
+
+    expect(result.fidelity).toBe("original-only");
+    expect(result.translationCoverage).toBe(0);
+    expect(result.lines.map((line) => line.original)).toEqual([
+      "让我将你心儿摘下",
+      "试着将它慢慢溶化",
+    ]);
   });
 });
 

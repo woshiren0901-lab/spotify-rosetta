@@ -1,6 +1,7 @@
 import type {
   LyricsLine,
   ProviderCandidate,
+  ProviderFetchOptions,
   ProviderId,
   ProviderResult,
   TrackInfo,
@@ -272,6 +273,7 @@ async function buildResult(
   candidate: ProviderCandidate,
   track: TrackInfo,
   signal: AbortSignal,
+  options: ProviderFetchOptions = {},
 ): Promise<ProviderResult> {
   let payload: Record<string, unknown>;
   let detailedPayload: Record<string, unknown> | undefined;
@@ -316,7 +318,7 @@ async function buildResult(
   if (!originalText.trim()) {
     throw new Error("QQ音乐没有返回可用的同步原文。");
   }
-  if (!translationText.trim()) {
+  if (!translationText.trim() && !options.allowOriginalOnly) {
     throw new Error("QQ音乐条目没有 ts 现成译文。");
   }
 
@@ -421,8 +423,9 @@ export class QQMusicProvider {
     candidate: ProviderCandidate,
     track: TrackInfo,
     signal: AbortSignal,
+    options?: ProviderFetchOptions,
   ): Promise<ProviderResult> {
-    return buildResult(candidate, track, signal);
+    return buildResult(candidate, track, signal, options);
   }
 }
 

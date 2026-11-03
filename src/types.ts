@@ -94,6 +94,14 @@ export interface LoadOutcome {
   provisional: boolean;
 }
 
+export interface ProviderFetchOptions {
+  /**
+   * Allow original lyrics to be returned when a translated result is absent.
+   * Controllers enable this only to fill a missing Spotify lyrics surface.
+   */
+  allowOriginalOnly?: boolean;
+}
+
 export interface LyricsProvider {
   readonly id: ProviderId;
   readonly label: string;
@@ -103,6 +111,7 @@ export interface LyricsProvider {
     candidate: ProviderCandidate,
     track: TrackInfo,
     signal: AbortSignal,
+    options?: ProviderFetchOptions,
   ): Promise<ProviderResult>;
 }
 
@@ -133,7 +142,7 @@ export interface CachedTrackRecord {
   result?: ProviderResult;
   candidates: ProviderCandidate[];
   manualProviderId?: ProviderId;
-  schemaVersion: 4;
+  schemaVersion: 5;
   updatedAt: number;
   lastAccess: number;
 }

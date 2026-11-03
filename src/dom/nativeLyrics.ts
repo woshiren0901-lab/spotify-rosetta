@@ -272,13 +272,13 @@ function sourceLabel(result: ProviderResult): string {
 }
 
 function statusFor(state: NativeRendererState): string | undefined {
-  if (!state.enabled) return "译文已关闭";
+  if (!state.enabled) return "Rosetta 已关闭";
   if (state.loading) return "正在查找现成翻译…";
   if (state.statusText) return state.statusText;
   const result = state.result;
   if (!result) return undefined;
   if (result.fidelity === "original-only") {
-    return "未找到可访问的现成中文翻译";
+    return `现成原文歌词 · ${sourceLabel(result)}`;
   }
   if (result.fidelity === "unsynced") {
     return `非同步译文 · ${sourceLabel(result)}`;
@@ -543,8 +543,7 @@ export class NativeLyricsRenderer {
     const shouldShow =
       result &&
       result.providerId !== "spotify" &&
-      result.lines.length > 0 &&
-      result.fidelity !== "original-only";
+      result.lines.length > 0;
     const nativeText = normalizeLyricText(
       surface.cloneNode(true) instanceof HTMLElement
         ? (surface.cloneNode(true) as HTMLElement).textContent ?? ""
@@ -567,7 +566,10 @@ export class NativeLyricsRenderer {
     container.setAttribute(CONTROL_ATTRIBUTE, "third-party");
     const header = document.createElement("div");
     header.className = "rosetta-third-party-header";
-    header.textContent = `Spotify 无原生歌词 · 第三方同源歌词 · ${sourceLabel(result)}`;
+    header.textContent =
+      result.fidelity === "original-only"
+        ? `Spotify 无原生歌词 · 第三方同源原文 · ${sourceLabel(result)}`
+        : `Spotify 无原生歌词 · 第三方同源歌词 · ${sourceLabel(result)}`;
     container.appendChild(header);
 
     for (const line of result.lines) {

@@ -1,10 +1,13 @@
 import { context, build } from "esbuild";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const outfile = path.join(root, "dist", "spotify-rosetta.js");
 const watch = process.argv.includes("--watch");
+const packageMetadata = JSON.parse(
+  await readFile(path.join(root, "package.json"), "utf8"),
+);
 
 await mkdir(path.dirname(outfile), { recursive: true });
 
@@ -20,7 +23,7 @@ const options = {
   minify: !watch,
   legalComments: "inline",
   banner: {
-    js: "/* Spotify Rosetta v0.1.0 | GPL-3.0-only | Existing translations only */",
+    js: `/* Spotify Rosetta v${packageMetadata.version} | GPL-3.0-only | Existing lyrics and translations only */`,
   },
   logLevel: "info",
 };

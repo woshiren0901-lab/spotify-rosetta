@@ -48,6 +48,7 @@ export type TranslationStatus =
   | "line"
   | "partial"
   | "unsynced"
+  | "original"
   | "none"
   | "error"
   | "disabled";
@@ -94,22 +95,36 @@ function statusFromResult(
     return result.translationCoverage < 0.999 ? "partial" : "line";
   }
   if (result.fidelity === "unsynced") return "unsynced";
+  if (result.fidelity === "original-only") return "original";
   return "none";
 }
 
 function statusTextFor(result: ProviderResult | undefined): string {
   if (!result) return "未找到可访问的现成中文翻译";
+  const source = result.candidate.sourceLabel ?? result.providerId;
   if (result.fidelity === "original-only") {
-    return "未找到可访问的现成中文翻译";
+    return `现成原文歌词 · ${source}`;
   }
   if (result.fidelity === "unsynced") {
-    return `已找到非同步译文 · ${result.candidate.sourceLabel ?? result.providerId}`;
+    return `已找到非同步译文 · ${source}`;
   }
-  const source = result.candidate.sourceLabel ?? result.providerId;
   if (result.translationCoverage < 0.999) {
     return `部分翻译 ${Math.round(result.translationCoverage * 100)}% · ${source}`;
   }
   return `${result.fidelity === "word" ? "逐字翻译" : "逐行翻译"} · ${source}`;
+}
+
+function assertNativeLyricMatch(
+  result: ProviderResult,
+  nativeLines: LyricsLine[] | undefined,
+): void {
+  if (!nativeLines?.length) return;
+  const sourceMatch = lyricSourceMatchRatio(nativeLines, result.lines);
+  if (sourceMatch < 0.2) {
+    throw new Error(
+      `来源歌词与 Spotify 原文不匹配（${Math.round(sourceMatch * 100)}%）。`,
+    );
+  }
 }
 
 export class RosettaController {
@@ -259,7 +274,7 @@ export class RosettaController {
       this.abortController?.abort();
       this.loading = false;
       this.status = "disabled";
-      this.statusText = "译文已关闭，Spotify 原生歌词保持不变";
+      this.statusText = "Rosetta 已关闭，Spotify 原生歌词保持不变";
     } else {
       await this.refreshCurrent(true);
     }
@@ -426,7 +441,7 @@ export class RosettaController {
     this.status = this.settings.enabled ? "loading" : "disabled";
     this.statusText = this.settings.enabled
       ? "正在查找现成翻译…"
-      : "译文已关闭，Spotify 原生歌词保持不变";
+      : "Rosetta 已关闭，Spotify 原生歌词保持不变";
     this.publishRenderer();
     this.emit();
 
@@ -465,9 +480,8 @@ export class RosettaController {
     const cached = skipCache ? undefined : await this.cache.getTrack(track.id);
     if (generation !== this.generation) return;
     if (
-      cached?.schemaVersion === 4 &&
-      cached.result &&
-      cached.result.fidelity !== "original-only"
+      cached?.schemaVersion === 5 &&
+      cached.result
     ) {
       this.loading = false;
       this.publishResult(cached.result, []);
@@ -486,6 +500,7 @@ export class RosettaController {
     }
     const allCandidates: ProviderCandidate[] = [];
     const results: ProviderResult[] = [];
+    const originalResults: ProviderResult[] = [];
     const nativeLinesPromise = this.fetchNativeLines(
       track,
       abortController.signal,
@@ -553,30 +568,24 @@ export class RosettaController {
           }
 
           let lastError: unknown;
+          let originalFallback: ProviderResult | undefined;
           for (const candidate of ranked.slice(0, 2)) {
             try {
               let result = await provider.fetch(
                 candidate.candidate,
                 track,
                 sourceAbort.signal,
+                { allowOriginalOnly: true },
               );
               const nativeLines = await nativeLinesPromise;
               result = hydrateTranslationOnlyResult(result, nativeLines);
-              if (!hasExistingTranslation(result)) {
-                throw new Error("来源没有返回同源中文译文。");
+              if (!result.lines.length) {
+                throw new Error("来源没有返回可用歌词。");
               }
-              if (nativeLines?.length) {
-                const sourceMatch = lyricSourceMatchRatio(
-                  nativeLines,
-                  result.lines,
-                );
-                if (sourceMatch < 0.2) {
-                  throw new Error(
-                    `来源歌词与 Spotify 原文不匹配（${Math.round(
-                      sourceMatch * 100,
-                    )}%）。`,
-                  );
-                }
+              assertNativeLyricMatch(result, nativeLines);
+              if (!hasExistingTranslation(result)) {
+                originalFallback = result;
+                continue;
               }
               results.push(result);
               if (
@@ -597,6 +606,15 @@ export class RosettaController {
               lastError = error;
               if (sourceAbort.signal.aborted) throw error;
             }
+          }
+          if (originalFallback) {
+            originalResults.push(originalFallback);
+            return {
+              providerId: provider.id,
+              status: "ok" as const,
+              message: "仅找到现成原文，留作无原生歌词回退",
+              elapsedMs: Math.round(performance.now() - startedAt),
+            };
           }
           throw lastError ?? new Error("没有可用歌词结果");
         } catch (error) {
@@ -634,7 +652,7 @@ export class RosettaController {
     const lrclibProvider = this.providers.find(
       (provider) => provider.id === "lrclib",
     );
-    if (!results.some((result) => result.fidelity !== "original-only")) {
+    if (!results.length && !originalResults.length) {
       if (
         lrclibProvider &&
         this.settings.providers.lrclib &&
@@ -652,7 +670,7 @@ export class RosettaController {
               track,
               abortController.signal,
             );
-            results.push(result);
+            originalResults.push(result);
             allCandidates.push(...ranked.map((entry) => entry.candidate));
             diagnosticResults.push({
               providerId: "lrclib",
@@ -673,10 +691,17 @@ export class RosettaController {
 
     this.diagnostics = diagnosticResults;
     const best = chooseBestResult(results, true);
-    if (!best) {
+    const originalFallback =
+      !best && !this.currentNativeLines?.length
+        ? chooseBestResult(originalResults, false)
+        : undefined;
+    const selected = best ?? originalFallback;
+    if (!selected) {
       this.loading = false;
       this.status = "none";
-      this.statusText = "未找到可访问的现成中文翻译";
+      this.statusText = this.currentNativeLines?.length
+        ? "未找到可访问的现成中文翻译"
+        : "未找到可访问的现成歌词或中文翻译";
       this.currentResult = undefined;
       this.renderer.setState({
         enabled: this.settings.enabled,
@@ -702,12 +727,12 @@ export class RosettaController {
     }
 
     this.loading = false;
-    this.publishResult(best, diagnosticResults);
+    this.publishResult(selected, diagnosticResults);
     await this.cache.putTrack({
       trackId: track.id,
-      result: best,
+      result: selected,
       candidates: dedupeCandidates(allCandidates),
-      schemaVersion: 4,
+      schemaVersion: 5,
       updatedAt: Date.now(),
       lastAccess: Date.now(),
     });
@@ -967,6 +992,7 @@ export class RosettaController {
             entry.candidate,
             syntheticTrack,
             abortController.signal,
+            { allowOriginalOnly: true },
           );
           entry.result = result;
           entry.coverage = result.translationCoverage;
@@ -992,6 +1018,7 @@ export class RosettaController {
         entry.candidate,
         track,
         new AbortController().signal,
+        { allowOriginalOnly: true },
       );
     }
     await this.cache.putOverride({

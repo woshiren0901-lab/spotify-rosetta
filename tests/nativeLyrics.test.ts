@@ -93,6 +93,37 @@ describe("native Spotify lyrics injection", () => {
     renderer.dispose();
   });
 
+  it("shows an existing original in an empty native surface without inventing a translation", async () => {
+    document.body.innerHTML = `
+      <div data-testid="lyrics-npv-section">暂无歌词</div>
+    `;
+    const renderer = new NativeLyricsRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      result: makeResult({
+        fidelity: "original-only",
+        translationCoverage: 0,
+        lines: [
+          {
+            startMs: 35_149,
+            original: "让我将你心儿摘下",
+          },
+        ],
+      }),
+      statusText: "现成原文歌词 · 网易云音乐",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const block = document.querySelector(".rosetta-third-party-lyrics");
+    expect(block?.textContent).toContain("第三方同源原文");
+    expect(block?.textContent).toContain("让我将你心儿摘下");
+    expect(block?.querySelector(".rosetta-third-party-translation")).toBeNull();
+    renderer.dispose();
+  });
+
   it("updates word-level translation opacity without replacing the span", async () => {
     document.body.innerHTML = `
       <div data-testid="lyrics-npv-section"><div>Word timed line</div></div>

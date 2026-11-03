@@ -112,6 +112,36 @@ describe("candidate ranking", () => {
     expect(scored.eligible).toBe(false);
   });
 
+  it("keeps Wu Bai's studio original separate from its short live versions", () => {
+    const wuBaiStudio: TrackInfo = {
+      ...track,
+      title: "挪威的森林",
+      artists: ["伍佰 & China Blue"],
+      album: "爱情的尽头",
+      durationMs: 391_026,
+    };
+    const studio = scoreCandidate(
+      wuBaiStudio,
+      candidate({
+        title: "挪威的森林",
+        artists: ["伍佰 & China Blue"],
+        album: "爱情的尽头",
+        durationMs: 391_026,
+      }),
+    );
+    const live = scoreCandidate(
+      wuBaiStudio,
+      candidate({
+        title: "挪威的森林 - Live",
+        artists: ["伍佰 & China Blue"],
+        album: "生命的现场",
+        durationMs: 223_493,
+      }),
+    );
+    expect(studio.eligible).toBe(true);
+    expect(live.eligible).toBe(false);
+  });
+
   it("rejects a translation for a different language version", () => {
     const japaneseTrack: TrackInfo = {
       ...track,

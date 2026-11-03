@@ -6,7 +6,7 @@ function record(trackId: string, lastAccess: number): CachedTrackRecord {
   return {
     trackId,
     candidates: [],
-    schemaVersion: 4,
+    schemaVersion: 5,
     updatedAt: lastAccess,
     lastAccess,
   };

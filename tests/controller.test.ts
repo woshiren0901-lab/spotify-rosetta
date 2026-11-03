@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RosettaController } from "../src/app/controller";
 import { NativeLyricsRenderer } from "../src/dom/nativeLyrics";
+import { NowPlayingPanelRenderer } from "../src/dom/nowPlayingPanel";
 import type {
   LyricsProvider,
   ProviderCandidate,
@@ -192,7 +193,127 @@ describe("Rosetta controller", () => {
     await Promise.resolve();
   });
 
-  it("does not accept an original-only provider result as a translation", async () => {
+  it("keeps foreign originals and existing translations together when Spotify has no lyrics", async () => {
+    installPlayerMock();
+    document.body.innerHTML = `
+      <aside class="main-nowPlayingView-panel">
+        <div class="main-nowPlayingView-contextItemInfo">Track info</div>
+        <div class="main-nowPlayingView-section">Artist info</div>
+      </aside>
+    `;
+    const translated = provider("netease");
+    vi.mocked(translated.fetch).mockResolvedValue({
+      providerId: "netease",
+      candidate: {
+        ...candidate("netease"),
+        sourceLabel: "网易云音乐",
+      },
+      matchScore: 0.98,
+      translationCoverage: 1,
+      fidelity: "line",
+      lines: [
+        {
+          startMs: 1_000,
+          original: "Controller lyric line",
+          translation: "控制测试译文",
+        },
+      ],
+      fetchedAt: Date.now(),
+    });
+    const spotify = {
+      ...provider("spotify"),
+      providesTranslations: false,
+      fetch: vi.fn(async () => {
+        throw new Error("Spotify 当前曲目没有原生歌词。");
+      }),
+    };
+    const controller = new RosettaController(
+      [translated, spotify],
+      new NativeLyricsRenderer(document),
+      new NowPlayingPanelRenderer(document),
+    );
+    controller.start();
+
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().status).toBe("line");
+    });
+    await vi.waitFor(() => {
+      const panel = document.querySelector(
+        ".rosetta-now-playing-panel",
+      )?.textContent;
+      expect(panel).toContain("Controller lyric line");
+      expect(panel).toContain("控制测试译文");
+    });
+
+    controller.dispose();
+    await Promise.resolve();
+  });
+
+  it("shows matching provider originals when Spotify has no native lyrics", async () => {
+    installPlayerMock();
+    document.body.innerHTML = `
+      <aside class="main-nowPlayingView-panel">
+        <div class="main-nowPlayingView-contextItemInfo">Track info</div>
+        <div class="main-nowPlayingView-section">Artist info</div>
+      </aside>
+    `;
+    const originalOnly = provider("netease");
+    vi.mocked(originalOnly.fetch).mockResolvedValue({
+      providerId: "netease",
+      candidate: {
+        ...candidate("netease"),
+        sourceLabel: "网易云音乐",
+      },
+      matchScore: 0.98,
+      translationCoverage: 0,
+      fidelity: "original-only",
+      lines: [
+        {
+          startMs: 35_149,
+          original: "控制测试原文",
+        },
+      ],
+      fetchedAt: Date.now(),
+    });
+    const spotify = {
+      ...provider("spotify"),
+      providesTranslations: false,
+      fetch: vi.fn(async () => {
+        throw new Error("Spotify 当前曲目没有原生歌词。");
+      }),
+    };
+    const controller = new RosettaController(
+      [originalOnly, spotify],
+      new NativeLyricsRenderer(document),
+      new NowPlayingPanelRenderer(document),
+    );
+    controller.start();
+
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().status).toBe("original");
+    });
+    expect(controller.getSnapshot().result?.providerId).toBe("netease");
+    expect(controller.getSnapshot().result?.fidelity).toBe("original-only");
+    expect(controller.getSnapshot().statusText).toBe(
+      "现成原文歌词 · 网易云音乐",
+    );
+    await vi.waitFor(() => {
+      expect(
+        document.querySelector(".rosetta-now-playing-panel")?.textContent,
+      ).toContain("控制测试原文");
+    });
+    expect(originalOnly.fetch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      { allowOriginalOnly: true },
+    );
+
+    controller.dispose();
+    await Promise.resolve();
+  });
+
+  it("does not use an original-only result when Spotify lyrics exist", async () => {
     installPlayerMock();
     document.body.innerHTML = `
       <div data-testid="lyrics-npv-section"><div>Controller lyric line</div></div>
@@ -229,7 +350,7 @@ describe("Rosetta controller", () => {
       controller
         .getSnapshot()
         .diagnostics.some((item) =>
-          item.message?.includes("没有返回同源中文译文"),
+          item.message?.includes("仅找到现成原文"),
         ),
     ).toBe(true);
     controller.dispose();

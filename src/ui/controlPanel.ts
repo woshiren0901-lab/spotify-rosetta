@@ -153,7 +153,7 @@ export class ControlPanel {
     if (Button) {
       try {
         const button = new Button(
-          "Spotify Rosetta：左键开关译文，右键设置",
+          "Spotify Rosetta：左键开关歌词增强，右键设置",
           ROSETTA_ICON,
           () => void this.toggleEnabled(),
           false,
@@ -175,7 +175,7 @@ export class ControlPanel {
     const button = document.createElement("button");
     button.type = "button";
     button.className = BUTTON_CLASS;
-    button.title = "Spotify Rosetta：左键开关译文，右键设置";
+    button.title = "Spotify Rosetta：左键开关歌词增强，右键设置";
     button.setAttribute("aria-label", button.title);
     button.innerHTML = ROSETTA_ICON;
     button.addEventListener("click", () => void this.toggleEnabled());
@@ -315,8 +315,8 @@ export class ControlPanel {
     );
     body.appendChild(
       this.switchRow(
-        "无原生歌词时显示 Now Playing 译文",
-        "Spotify 没有原生歌词区或显示暂无歌词时，在右侧 Now Playing 面板显示现成双语歌词。",
+        "无原生歌词时显示 Now Playing 歌词",
+        "Spotify 没有原生歌词区或显示暂无歌词时，在右侧 Now Playing 面板显示现成双语歌词；若歌曲本身没有中文译文，则显示同源现成原文。",
         settings.showNowPlayingFallback,
         (checked) =>
           void this.controller.updateSettings({
@@ -460,7 +460,7 @@ export class ControlPanel {
     body.appendChild(grid);
 
     const actions = element("div", "rosetta-actions");
-    const search = element("button", "rosetta-button", "搜索现成译文");
+    const search = element("button", "rosetta-button", "搜索现成歌词/译文");
     search.type = "button";
     const results = element("div", "rosetta-search-results");
     const renderResults = () => {
@@ -658,7 +658,7 @@ export class ControlPanel {
       element(
         "p",
         "rosetta-note",
-        "Spotify Rosetta 只在 Spotify 原生歌词界面中追加互联网已经存在的译文。它不包含机器翻译、AI 翻译或生成式补译。",
+        "Spotify Rosetta 在 Spotify 原生歌词界面中追加互联网已经存在的译文；Spotify 没有原生歌词时，可显示同源现成原文或双语歌词。它不包含机器翻译、AI 翻译或生成式补译。",
       ),
       element(
         "p",
