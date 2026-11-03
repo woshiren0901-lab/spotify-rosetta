@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spotify Rosetta Maintenance (2026-11-04)"
+  short_description: "Project-specific matching, runtime, and release maintenance"
+  default_prompt: "Use $spotify-rosetta-2026-11-04-maintenance-release to update and verify this project."
