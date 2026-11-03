@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+dist/*
+!dist/spotify-rosetta.js
+coverage/
+.tmp/
+release/
+.codex/
+*.log
+.DS_Store
+
