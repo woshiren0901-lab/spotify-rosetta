@@ -10,6 +10,7 @@ Spotify Rosetta is a GPL-3.0 Spicetify extension for Windows that adds existing 
 - Places the fallback directly below track metadata and above artist biography, with large native-lyrics-style typography.
 - Uses exact ISRC and metadata identity checks, then verifies the source lyric sequence.
 - Supports NetEase, QQ Music, Musixmatch, LyricsTranslate, curated bilingual web pages, and local LRC/JSON imports.
+- Binds manual-search candidates to the track that was playing when the search started, preventing stale lyrics from being applied after a song change.
 - Does not include machine translation, AI translation, or generated lyric completion.
 
 ## Documentation

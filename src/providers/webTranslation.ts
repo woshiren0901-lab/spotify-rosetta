@@ -12,7 +12,10 @@ import {
   dedupeProviderCandidates,
 } from "./common";
 
-type WebParser = "bilingualArticle" | "lyricsTranslateTranslationOnly";
+type WebParser =
+  | "bilingualArticle"
+  | "lyricsTranslateTranslationOnly"
+  | "lyricsTranslateOriginal";
 
 interface WebTranslationSource {
   title: string;
@@ -20,6 +23,7 @@ interface WebTranslationSource {
   url: string;
   sourceLabel: string;
   parser: WebParser;
+  sourceLanguage?: string;
 }
 
 const WEB_TRANSLATION_SOURCES: WebTranslationSource[] = [
@@ -30,6 +34,7 @@ const WEB_TRANSLATION_SOURCES: WebTranslationSource[] = [
       "https://lyricstranslate.com/en/do-you-hear-people-sing-ni-ke-ting-dao-ren-min-zai-ge-c.html",
     sourceLabel: "LyricsTranslate · 人工中文译文",
     parser: "lyricsTranslateTranslationOnly",
+    sourceLanguage: "en",
   },
   {
     title: "We Didn't Start the Fire",
@@ -37,6 +42,16 @@ const WEB_TRANSLATION_SOURCES: WebTranslationSource[] = [
     url: "https://tonyliu0936.pixnet.net/blog/posts/14217066080",
     sourceLabel: "蔚藍天空 · PIXNET 人工双语译文",
     parser: "bilingualArticle",
+    sourceLanguage: "en",
+  },
+  {
+    title: "最后一枪",
+    artistTokens: ["崔健", "cui jian"],
+    url:
+      "https://lyricstranslate.com/en/cui-jian-zu%C3%8Ch%C3%B2u-y%C4%AB-qi%C4%81ng-lyrics.html",
+    sourceLabel: "LyricsTranslate · 现成中文原文",
+    parser: "lyricsTranslateOriginal",
+    sourceLanguage: "zh",
   },
 ];
 
@@ -180,6 +195,17 @@ export function parseLyricsTranslateTranslationOnly(
     }));
 }
 
+export function parseLyricsTranslateOriginal(html: string): LyricsLine[] {
+  const document = parseDocument(html);
+  const root =
+    document?.querySelector("#original-lyrics, #song-body") ?? null;
+  if (!root) return [];
+  return pageLines(root).map((original) => ({
+    startMs: 0,
+    original,
+  }));
+}
+
 export function parseWebTranslationPage(html: string): LyricsLine[] {
   const document = parseDocument(html);
   if (
@@ -232,7 +258,7 @@ export class WebTranslationProvider {
         album: track.album,
         durationMs: track.durationMs,
         isrc: track.isrc,
-        sourceLanguage: "en",
+        sourceLanguage: source.sourceLanguage,
         sourceUrl: source.url,
         sourceLabel: source.sourceLabel,
         extra: { parser: source.parser },
@@ -258,9 +284,17 @@ export class WebTranslationProvider {
     const lines =
       parser === "lyricsTranslateTranslationOnly"
         ? parseLyricsTranslateTranslationOnly(html)
+        : parser === "lyricsTranslateOriginal"
+          ? parseLyricsTranslateOriginal(html)
         : parseBilingualArticle(html);
-    if (!lines.some((line) => line.translation?.trim())) {
+    if (
+      parser !== "lyricsTranslateOriginal" &&
+      !lines.some((line) => line.translation?.trim())
+    ) {
       throw new Error("网页中没有提取到人工中文译文。");
+    }
+    if (!lines.length) {
+      throw new Error("网页中没有提取到现成歌词。");
     }
     return buildProviderResult(
       "web",

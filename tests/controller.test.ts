@@ -356,5 +356,96 @@ describe("Rosetta controller", () => {
     controller.dispose();
     await Promise.resolve();
   });
+
+  it("returns only manually searchable candidates and binds them to the searched track", async () => {
+    installPlayerMock();
+    const usable = provider("netease");
+    const unusable = provider("qq");
+    vi.mocked(unusable.fetch).mockRejectedValue(
+      new Error("QQ lyrics unavailable"),
+    );
+    const controller = new RosettaController(
+      [usable, unusable],
+      new NativeLyricsRenderer(document),
+      new NowPlayingPanelRenderer(document),
+    );
+
+    const results = await controller.manualSearch({
+      title: track.title,
+      artist: track.artists.join(", "),
+      album: track.album,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.providerId).toBe("netease");
+    expect(results[0]?.trackId).toBe(track.id);
+    expect(results[0]?.result).toBeDefined();
+  });
+
+  it("uses exact manual-search metadata without stale aliases or ISRC", async () => {
+    installPlayerMock();
+    const searched = provider("netease");
+    vi.mocked(searched.search).mockResolvedValue([
+      {
+        ...candidate("netease"),
+        title: "青春舞曲2000",
+        artists: ["群星"],
+        album: "皇后大道東",
+      },
+    ]);
+    const controller = new RosettaController(
+      [searched],
+      new NativeLyricsRenderer(document),
+      new NowPlayingPanelRenderer(document),
+    );
+
+    const results = await controller.manualSearch({
+      title: "最后一枪",
+      artist: "崔健",
+      album: "中国风金曲集",
+    });
+
+    expect(results).toEqual([]);
+    const input = vi.mocked(searched.search).mock.calls[0]?.[0];
+    expect(input).toMatchObject({
+      title: "最后一枪",
+      artists: ["崔健"],
+      album: "中国风金曲集",
+      titleAliases: [],
+      artistAliases: [],
+      albumAliases: [],
+      languageHints: [],
+    });
+    expect(input?.isrc).toBeUndefined();
+  });
+
+  it("rejects a manual candidate after Spotify switches to another track", async () => {
+    installPlayerMock();
+    const controller = new RosettaController(
+      [provider("netease")],
+      new NativeLyricsRenderer(document),
+      new NowPlayingPanelRenderer(document),
+    );
+    const results = await controller.manualSearch({
+      title: track.title,
+      artist: track.artists.join(", "),
+      album: track.album,
+    });
+    expect(results[0]).toBeDefined();
+
+    Object.assign(window.Spicetify!.Player!.data!, {
+      item: {
+        uri: "spotify:track:anotherTrack002",
+        name: "Another Song",
+        artists: [{ name: "Another Artist" }],
+        album: { name: "Another Album" },
+        duration: { milliseconds: 190_000 },
+      },
+    });
+
+    await expect(
+      controller.applyManualSelection(results[0]!),
+    ).rejects.toThrow("歌曲已切换");
+  });
 });
 

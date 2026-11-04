@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   WebTranslationProvider,
   parseBilingualArticle,
+  parseLyricsTranslateOriginal,
   parseLyricsTranslateTranslationOnly,
   parseWebTranslationPage,
 } from "../src/providers/webTranslation";
@@ -26,6 +27,38 @@ describe("web translation sources", () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.sourceUrl).toContain("pixnet.net");
     expect(candidates[0]?.sourceLabel).toContain("人工双语");
+  });
+
+  it("finds the curated Chinese original for Cui Jian's Last Shot", async () => {
+    const provider = new WebTranslationProvider();
+    const candidates = await provider.search(
+      {
+        id: "last-shot",
+        uri: "spotify:track:last-shot",
+        title: "最后一枪",
+        artists: ["崔健"],
+        album: "中国风.金曲集",
+        durationMs: 259_000,
+      },
+      new AbortController().signal,
+    );
+    expect(candidates[0]?.sourceUrl).toContain("cui-jian");
+    expect(candidates[0]?.sourceLanguage).toBe("zh");
+    expect(candidates[0]?.extra?.parser).toBe("lyricsTranslateOriginal");
+  });
+
+  it("parses original-only lyrics from a LyricsTranslate song page", () => {
+    const lines = parseLyricsTranslateOriginal(`
+      <div id="song-body" class="translate__text" lang="zh-Hans">
+        <div class="ltf">
+          <div class="par"><div>第一句原文</div><div>第二句原文</div></div>
+        </div>
+      </div>
+    `);
+    expect(lines).toEqual([
+      { startMs: 0, original: "第一句原文" },
+      { startMs: 0, original: "第二句原文" },
+    ]);
   });
 
   it("pairs alternating and mixed bilingual article lines", () => {

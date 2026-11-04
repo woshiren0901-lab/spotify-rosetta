@@ -9,7 +9,7 @@ import type {
   RosettaSettings,
   TrackInfo,
 } from "../types";
-import { RosettaCache } from "../core/cache";
+import { RosettaCache, isCurrentManualOverride } from "../core/cache";
 import {
   ProviderHttpError,
   asString,
@@ -147,6 +147,7 @@ export class RosettaController {
   private abortController?: AbortController;
   private pollTimer?: number;
   private progressTimer?: number;
+  private songChangeTimer?: number;
   private lastProgressAt = 0;
 
   constructor(
@@ -177,7 +178,7 @@ export class RosettaController {
       if (track?.id !== this.currentTrack?.id) {
         this.handleSongChange();
       }
-    }, 3_000);
+    }, 1_000);
 
     this.progressTimer = window.setInterval(() => {
       const now = performance.now();
@@ -210,8 +211,10 @@ export class RosettaController {
     );
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     if (this.progressTimer) window.clearInterval(this.progressTimer);
+    if (this.songChangeTimer) window.clearTimeout(this.songChangeTimer);
     this.pollTimer = undefined;
     this.progressTimer = undefined;
+    this.songChangeTimer = undefined;
     this.renderer.dispose();
     this.nowPlayingRenderer.dispose();
     void this.cache.close();
@@ -298,7 +301,11 @@ export class RosettaController {
   }
 
   private handleSongChange = (): void => {
-    void this.refreshCurrent(true);
+    if (this.songChangeTimer) window.clearTimeout(this.songChangeTimer);
+    this.songChangeTimer = window.setTimeout(() => {
+      this.songChangeTimer = undefined;
+      void this.refreshCurrent(true);
+    }, 100);
   };
 
   private readCurrentTrack(): TrackInfo | undefined {
@@ -453,11 +460,18 @@ export class RosettaController {
 
     const override = await this.cache.getOverride(track.id);
     if (generation !== this.generation) return;
-    if (override && providerEnabled(this.settings, override.providerId)) {
+    if (
+      override &&
+      isCurrentManualOverride(override, track.id) &&
+      providerEnabled(this.settings, override.providerId)
+    ) {
       this.loading = false;
       this.publishResult(override.result, []);
       void this.refreshNativeLines(track, generation, abortController.signal);
       return;
+    }
+    if (override) {
+      void this.cache.deleteOverride(track.id);
     }
 
     const local = this.settings.providers.local
@@ -480,7 +494,7 @@ export class RosettaController {
     const cached = skipCache ? undefined : await this.cache.getTrack(track.id);
     if (generation !== this.generation) return;
     if (
-      cached?.schemaVersion === 5 &&
+      cached?.schemaVersion === 6 &&
       cached.result
     ) {
       this.loading = false;
@@ -732,7 +746,7 @@ export class RosettaController {
       trackId: track.id,
       result: selected,
       candidates: dedupeCandidates(allCandidates),
-      schemaVersion: 5,
+      schemaVersion: 6,
       updatedAt: Date.now(),
       lastAccess: Date.now(),
     });
@@ -876,6 +890,7 @@ export class RosettaController {
     });
     await this.cache.putOverride({
       trackId: track.id,
+      sourceTrackId: track.id,
       providerId: "local",
       candidate: result.candidate,
       result,
@@ -921,6 +936,7 @@ export class RosettaController {
     });
     await this.cache.putOverride({
       trackId: track.id,
+      sourceTrackId: track.id,
       providerId: "web",
       candidate: result.candidate,
       result,
@@ -938,16 +954,21 @@ export class RosettaController {
   }
 
   async manualSearch(query: ManualQuery): Promise<ManualSearchEntry[]> {
-    const current = this.currentTrack ?? this.readCurrentTrack();
+    const current = this.readCurrentTrack() ?? this.currentTrack;
     if (!current) return [];
     const syntheticTrack: TrackInfo = {
       ...current,
       title: query.title.trim() || current.title,
+      titleAliases: [],
       artists: query.artist
         .split(/\s*,\s*/)
         .map((artist) => artist.trim())
         .filter(Boolean),
+      artistAliases: [],
       album: query.album.trim() || current.album,
+      albumAliases: [],
+      isrc: undefined,
+      languageHints: [],
     };
     if (!syntheticTrack.artists.length) {
       syntheticTrack.artists = current.artists;
@@ -966,6 +987,7 @@ export class RosettaController {
           );
           for (const candidate of ranked.slice(0, 4)) {
             entries.push({
+              trackId: current.id,
               providerId: provider.id,
               providerLabel: provider.label,
               candidate: candidate.candidate,
@@ -1002,12 +1024,23 @@ export class RosettaController {
         }
       }),
     );
-    return top;
+    const liveTrack = this.readCurrentTrack();
+    if (!liveTrack || liveTrack.id !== current.id) {
+      throw new Error("歌曲已切换，请重新搜索。");
+    }
+    return top.filter(
+      (entry): entry is ManualSearchEntry & { result: ProviderResult } =>
+        Boolean(entry.result),
+    );
   }
 
   async applyManualSelection(entry: ManualSearchEntry): Promise<void> {
-    const track = this.currentTrack ?? this.readCurrentTrack();
-    if (!track) return;
+    const track = this.readCurrentTrack();
+    if (!track) throw new Error("当前没有正在播放的 Spotify 歌曲。");
+    if (entry.trackId !== track.id) {
+      throw new Error("歌曲已切换，请重新搜索并选择来源。");
+    }
+    const generation = this.generation;
     let result = entry.result;
     if (!result) {
       const provider = this.providers.find(
@@ -1021,8 +1054,17 @@ export class RosettaController {
         { allowOriginalOnly: true },
       );
     }
+    const liveTrack = this.readCurrentTrack();
+    if (
+      generation !== this.generation ||
+      !liveTrack ||
+      liveTrack.id !== track.id
+    ) {
+      throw new Error("歌曲已切换，旧候选已取消。");
+    }
     await this.cache.putOverride({
       trackId: track.id,
+      sourceTrackId: entry.trackId,
       providerId: entry.providerId,
       candidate: entry.candidate,
       result,

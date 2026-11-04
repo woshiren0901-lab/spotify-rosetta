@@ -21,6 +21,13 @@ export function trimCacheRecords(
     .slice(0, Math.max(1, limit));
 }
 
+export function isCurrentManualOverride(
+  record: ManualOverrideRecord,
+  trackId: string,
+): boolean {
+  return record.trackId === trackId && record.sourceTrackId === trackId;
+}
+
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -130,6 +137,17 @@ export class RosettaCache {
       await transactionDone(transaction);
     } catch {
       // Manual override still works for the current session.
+    }
+  }
+
+  async deleteOverride(trackId: string): Promise<void> {
+    try {
+      const database = await this.open();
+      const transaction = database.transaction(OVERRIDE_STORE, "readwrite");
+      transaction.objectStore(OVERRIDE_STORE).delete(trackId);
+      await transactionDone(transaction);
+    } catch {
+      // An invalidated override is also ignored for the current session.
     }
   }
 

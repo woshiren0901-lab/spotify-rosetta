@@ -142,13 +142,14 @@ export interface CachedTrackRecord {
   result?: ProviderResult;
   candidates: ProviderCandidate[];
   manualProviderId?: ProviderId;
-  schemaVersion: 5;
+  schemaVersion: 6;
   updatedAt: number;
   lastAccess: number;
 }
 
 export interface ManualOverrideRecord {
   trackId: string;
+  sourceTrackId?: string;
   providerId: ProviderId;
   candidate: ProviderCandidate;
   result: ProviderResult;
@@ -163,6 +164,7 @@ export interface LocalTranslationRecord {
 }
 
 export interface ManualSearchEntry {
+  trackId: string;
   providerId: ProviderId;
   providerLabel: string;
   candidate: ProviderCandidate;

@@ -65,11 +65,24 @@ export class ControlPanel {
   private activeTab: "settings" | "search" | "import" | "about" = "settings";
   private manualResults: ManualSearchEntry[] = [];
   private manualSearching = false;
+  private manualSearchGeneration = 0;
+  private lastTrackId?: string;
   private clearArmed = false;
 
   constructor(private readonly controller: RosettaController) {
     injectStyles();
     this.unsubscribe = controller.subscribe((snapshot) => {
+      const nextTrackId = snapshot.track?.id;
+      if (
+        this.lastTrackId &&
+        nextTrackId &&
+        this.lastTrackId !== nextTrackId &&
+        this.modal &&
+        (this.activeTab === "search" || this.activeTab === "import")
+      ) {
+        this.closeModal();
+      }
+      if (nextTrackId) this.lastTrackId = nextTrackId;
       this.snapshot = snapshot;
       this.updateButton();
     });
@@ -255,6 +268,7 @@ export class ControlPanel {
     this.modalBody = undefined;
     this.manualResults = [];
     this.manualSearching = false;
+    this.manualSearchGeneration += 1;
     this.clearArmed = false;
   }
 
@@ -463,6 +477,7 @@ export class ControlPanel {
     const search = element("button", "rosetta-button", "搜索现成歌词/译文");
     search.type = "button";
     const results = element("div", "rosetta-search-results");
+    let searchNote = "";
     const renderResults = () => {
       results.replaceChildren();
       if (this.manualSearching) {
@@ -473,7 +488,11 @@ export class ControlPanel {
       }
       if (!this.manualResults.length) {
         results.appendChild(
-          element("div", "rosetta-note", "尚未找到候选，或还没有开始搜索。"),
+          element(
+            "div",
+            "rosetta-note",
+            searchNote || "尚未找到候选，或还没有开始搜索。",
+          ),
         );
         return;
       }
@@ -497,8 +516,13 @@ export class ControlPanel {
         copy.append(titleNode, meta);
         const use = element("button", "rosetta-button secondary", "使用");
         use.type = "button";
-        use.disabled = !entry.result;
+        const usable =
+          Boolean(entry.result) &&
+          entry.trackId === this.snapshot?.track?.id;
+        use.disabled = !usable;
+        if (!usable) use.textContent = "不可用";
         use.addEventListener("click", async () => {
+          if (!usable) return;
           use.disabled = true;
           use.textContent = "应用中…";
           try {
@@ -515,20 +539,43 @@ export class ControlPanel {
     };
 
     search.addEventListener("click", async () => {
+      const searchGeneration = ++this.manualSearchGeneration;
+      const searchTrackId = this.snapshot?.track?.id;
       this.manualSearching = true;
       search.disabled = true;
       this.manualResults = [];
+      searchNote = "";
       renderResults();
       try {
-        this.manualResults = await this.controller.manualSearch({
+        const found = await this.controller.manualSearch({
           title: title.value,
           artist: artist.value,
           album: album.value,
         });
+        if (searchGeneration !== this.manualSearchGeneration) return;
+        if (
+          !searchTrackId ||
+          this.snapshot?.track?.id !== searchTrackId
+        ) {
+          searchNote = "歌曲已切换，请重新搜索。";
+          this.manualResults = [];
+          return;
+        }
+        this.manualResults = found;
+        if (!found.length) {
+          searchNote = "没有来源返回可直接使用的现成歌词。";
+        }
+      } catch (error) {
+        if (searchGeneration !== this.manualSearchGeneration) return;
+        this.manualResults = [];
+        searchNote =
+          error instanceof Error ? error.message : "手动搜索失败。";
       } finally {
-        this.manualSearching = false;
-        search.disabled = false;
-        renderResults();
+        if (searchGeneration === this.manualSearchGeneration) {
+          this.manualSearching = false;
+          search.disabled = false;
+          renderResults();
+        }
       }
     });
     actions.appendChild(search);
