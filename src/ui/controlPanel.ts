@@ -338,6 +338,17 @@ export class ControlPanel {
           }),
       ),
     );
+    body.appendChild(
+      this.switchRow(
+        "桌面歌词",
+        "打开独立的置顶歌词窗口：全透明无卡片，只显示上一句、当前句和后两句；当前句红色，其余白色。",
+        settings.desktopLyricsEnabled,
+        (checked) =>
+          void this.controller.updateSettings({
+            desktopLyricsEnabled: checked,
+          }),
+      ),
+    );
 
     body.appendChild(element("h3", "rosetta-section-title", "歌词来源"));
     const providerRows: Array<

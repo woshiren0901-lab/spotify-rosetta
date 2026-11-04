@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
 import { NowPlayingPanelRenderer } from "../src/dom/nowPlayingPanel";
 import type { ProviderResult } from "../src/types";
@@ -37,6 +37,7 @@ function makeResult(): ProviderResult {
 afterEach(() => {
   document.body.replaceChildren();
   document.head.replaceChildren();
+  window.Spicetify = undefined;
 });
 
 describe("Now Playing fallback panel", () => {
@@ -217,6 +218,73 @@ describe("Now Playing fallback panel", () => {
     const panel = document.querySelector(".rosetta-now-playing-panel");
     expect(panel?.parentElement?.className).toBe("scroll-content");
     expect(panel?.previousElementSibling?.className).toBe("track-context");
+    renderer.dispose();
+  });
+
+  it("seeks the corresponding timestamp when a fallback lyric is clicked", async () => {
+    document.body.innerHTML = `
+      <aside class="main-nowPlayingView-panel">
+        <div class="main-nowPlayingView-contextItemInfo">Track info</div>
+        <div class="main-nowPlayingView-section">Artist info</div>
+      </aside>
+    `;
+    const seek = vi.fn();
+    window.Spicetify = { Player: { seek } } as never;
+    const renderer = new NowPlayingPanelRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      result: makeResult(),
+      statusText: "逐行翻译",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    document
+      .querySelectorAll<HTMLElement>(".rosetta-now-playing-line.is-seekable")[1]
+      ?.click();
+    expect(seek).toHaveBeenCalledWith(2_000);
+    renderer.dispose();
+  });
+
+  it("does not make synthetic untimed lyrics seekable", async () => {
+    document.body.innerHTML = `
+      <aside class="main-nowPlayingView-panel">
+        <div class="main-nowPlayingView-contextItemInfo">Track info</div>
+        <div class="main-nowPlayingView-section">Artist info</div>
+      </aside>
+    `;
+    const seek = vi.fn();
+    window.Spicetify = { Player: { seek } } as never;
+    const renderer = new NowPlayingPanelRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      result: {
+        ...makeResult(),
+        fidelity: "original-only",
+        lines: [
+          { startMs: 0, original: "Untimed lyric" },
+          { startMs: 1_000, original: "Another untimed lyric" },
+        ],
+      },
+      statusText: "现成原文歌词",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const rows = [
+      ...document.querySelectorAll<HTMLElement>(
+        ".rosetta-now-playing-line",
+      ),
+    ];
+    expect(rows.every((row) => !row.classList.contains("is-seekable"))).toBe(
+      true,
+    );
+    rows[0]?.click();
+    expect(seek).not.toHaveBeenCalled();
     renderer.dispose();
   });
 });

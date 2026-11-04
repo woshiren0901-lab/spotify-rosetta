@@ -4,6 +4,7 @@ import type {
   RosettaSettings,
   TrackInfo,
 } from "../types";
+import { canSeekLyricLine } from "../core/lyricsTimeline";
 import { injectStyles } from "../ui/styles";
 
 const PANEL_ATTRIBUTE = "data-rosetta-now-playing";
@@ -101,6 +102,10 @@ function textOfLine(line: LyricsLine): string {
   );
 }
 
+function seekTo(startMs: number): void {
+  window.Spicetify?.Player?.seek?.(startMs);
+}
+
 function sourceLabel(result: ProviderResult): string {
   return result.candidate.sourceLabel ?? result.providerId;
 }
@@ -128,6 +133,7 @@ export class NowPlayingPanelRenderer {
       showUnsynced: true,
       wordHighlight: true,
       showNowPlayingFallback: true,
+      desktopLyricsEnabled: false,
       cacheLimit: 500,
       providers: {
         netease: true,
@@ -405,6 +411,22 @@ export class NowPlayingPanelRenderer {
         row.className = "rosetta-now-playing-line";
         row.dataset.lineIndex = String(index);
         row.dataset.startMs = String(line.startMs);
+        if (canSeekLyricLine(result, line)) {
+          row.classList.add("is-seekable");
+          row.tabIndex = 0;
+          row.setAttribute("role", "button");
+          row.setAttribute(
+            "aria-label",
+            `跳到歌词：${line.original || textOfLine(line)}`,
+          );
+          row.addEventListener("click", () => seekTo(line.startMs));
+          row.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              seekTo(line.startMs);
+            }
+          });
+        }
         if (original) {
           const originalNode = this.root.createElement("div");
           originalNode.className = "rosetta-now-playing-original";

@@ -39,6 +39,7 @@ export interface SpicetifyApi {
     addEventListener?: (event: string, callback: () => void) => void;
     removeEventListener?: (event: string, callback: () => void) => void;
     getProgress?: () => number;
+    seek?: (milliseconds: number) => void;
     isPlaying?: () => boolean;
   };
   CosmosAsync?: SpicetifyCosmosAsync;
@@ -60,9 +61,19 @@ export interface SpicetifyApi {
   showNotification?: (message: string, isError?: boolean) => void;
 }
 
+export interface DocumentPictureInPictureApi {
+  readonly window?: Window | null;
+  requestWindow(options?: {
+    width?: number;
+    height?: number;
+    disallowReturnToOpener?: boolean;
+  }): Promise<Window>;
+}
+
 declare global {
   interface Window {
     Spicetify?: SpicetifyApi;
+    documentPictureInPicture?: DocumentPictureInPictureApi;
     SpotifyRosetta?: {
       dispose(): void;
       refresh(): Promise<void>;

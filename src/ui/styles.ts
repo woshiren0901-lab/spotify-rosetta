@@ -14,6 +14,14 @@ export const ROSETTA_CSS = `
   text-transform: none !important;
   pointer-events: none !important;
 }
+.rosetta-translation-line.is-seekable {
+  pointer-events: auto !important;
+  cursor: pointer;
+}
+.rosetta-translation-line.is-seekable:hover,
+.rosetta-translation-line.is-seekable:focus-visible {
+  color: var(--spice-text, #fff) !important;
+}
 .rosetta-translation-text[data-word-highlight="true"] .rosetta-translation-segment {
   opacity: var(--rosetta-alpha, 0.32);
   transition: opacity 60ms linear;
@@ -86,6 +94,14 @@ export const ROSETTA_CSS = `
   opacity: .42;
   transition: opacity 180ms ease, background 180ms ease;
 }
+.rosetta-now-playing-line.is-seekable {
+  cursor: pointer;
+}
+.rosetta-now-playing-line.is-seekable:hover,
+.rosetta-now-playing-line.is-seekable:focus-visible {
+  opacity: .9;
+  background: rgba(255,255,255,.055);
+}
 .rosetta-now-playing-line.is-active {
   opacity: 1;
   background: transparent;
@@ -134,6 +150,14 @@ export const ROSETTA_CSS = `
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+.rosetta-third-party-line.is-seekable {
+  cursor: pointer;
+  border-radius: 6px;
+}
+.rosetta-third-party-line.is-seekable:hover,
+.rosetta-third-party-line.is-seekable:focus-visible {
+  background: rgba(255,255,255,.055);
 }
 .rosetta-third-party-original {
   font-size: 1.06em;

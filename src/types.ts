@@ -133,6 +133,7 @@ export interface RosettaSettings {
   showUnsynced: boolean;
   wordHighlight: boolean;
   showNowPlayingFallback: boolean;
+  desktopLyricsEnabled: boolean;
   cacheLimit: number;
   providers: ProviderSettings;
 }

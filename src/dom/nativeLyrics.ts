@@ -5,6 +5,7 @@ import type {
   TranslationSegment,
 } from "../types";
 import { alignLyricSequences } from "../core/alignment";
+import { canSeekLyricLine } from "../core/lyricsTimeline";
 import { normalizeLyricText } from "../core/normalize";
 
 const TRANSLATION_ATTRIBUTE = "data-rosetta-translation";
@@ -126,6 +127,10 @@ function translationText(line: LyricsLine): string {
     line.translationSegments?.map((segment) => segment.text).join("") ||
     ""
   );
+}
+
+function seekTo(startMs: number): void {
+  window.Spicetify?.Player?.seek?.(startMs);
 }
 
 function combineTranslationLines(lines: LyricsLine[]): LyricsLine | undefined {
@@ -308,6 +313,7 @@ export class NativeLyricsRenderer {
       showUnsynced: true,
       wordHighlight: true,
       showNowPlayingFallback: true,
+      desktopLyricsEnabled: false,
       cacheLimit: 500,
       providers: {
         netease: true,
@@ -435,6 +441,26 @@ export class NativeLyricsRenderer {
     wrapper.setAttribute(TRANSLATION_ATTRIBUTE, line.original);
     wrapper.setAttribute(CONTROL_ATTRIBUTE, "translation");
     wrapper.setAttribute("aria-label", `中文翻译：${translation}`);
+    if (canSeekLyricLine(this.state.result, line)) {
+      wrapper.classList.add("is-seekable");
+      wrapper.tabIndex = 0;
+      wrapper.setAttribute("role", "button");
+      wrapper.setAttribute(
+        "aria-label",
+        `跳到歌词：${line.original}。中文翻译：${translation}`,
+      );
+      wrapper.addEventListener("click", (event) => {
+        event.stopPropagation();
+        seekTo(line.startMs);
+      });
+      wrapper.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          event.stopPropagation();
+          seekTo(line.startMs);
+        }
+      });
+    }
 
     if (
       this.state.settings.wordHighlight &&
@@ -579,6 +605,22 @@ export class NativeLyricsRenderer {
     for (const line of result.lines) {
       const row = document.createElement("div");
       row.className = "rosetta-third-party-line";
+      if (canSeekLyricLine(result, line)) {
+        row.classList.add("is-seekable");
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.setAttribute(
+          "aria-label",
+          `跳到歌词：${line.original || translationText(line)}`,
+        );
+        row.addEventListener("click", () => seekTo(line.startMs));
+        row.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            seekTo(line.startMs);
+          }
+        });
+      }
       const original = document.createElement("div");
       original.className = "rosetta-third-party-original";
       original.textContent = line.original;

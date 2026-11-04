@@ -1,6 +1,6 @@
 ---
 name: spotify-rosetta-2026-11-04-maintenance-release
-description: "Maintain and release Spotify Rosetta in this repository, including provider identity, human-translation sourcing, language-version matching, native and Now Playing lyric injection, tests, packaging, and GitHub releases."
+description: "Maintain and release Spotify Rosetta in this repository, including provider identity, human-translation sourcing, language-version matching, native, Now Playing, and desktop lyric injection, tests, packaging, and GitHub releases."
 metadata:
   short-description: "Spotify Rosetta project maintenance"
   project: "spotify-rosetta"
@@ -22,6 +22,9 @@ projects.
 - Preserve Spotify's native lyrics and scrolling when the native lyrics surface
   exists. Use the custom Now Playing section only when Spotify has no lyrics
   surface or shows an empty/no-lyrics state.
+- Keep the optional Document Picture-in-Picture desktop lyrics window
+  transparent, limited to the previous/current/next-two lines, synchronized
+  with playback, and seekable only when the source has a real line timeline.
 - Treat recordings, language versions, covers, live versions, and remixes as
   distinct identities. A correct title alone is not a match.
 - Keep `readme.txt`'s final section titled `现有平台与开源项目`; no content may

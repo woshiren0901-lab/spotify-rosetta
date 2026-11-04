@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NativeLyricsRenderer } from "../src/dom/nativeLyrics";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
 import type { ProviderResult } from "../src/types";
@@ -33,6 +33,8 @@ function makeResult(overrides: Partial<ProviderResult> = {}): ProviderResult {
 
 afterEach(() => {
   document.body.replaceChildren();
+  document.head.replaceChildren();
+  window.Spicetify = undefined;
 });
 
 describe("native Spotify lyrics injection", () => {
@@ -104,6 +106,92 @@ describe("native Spotify lyrics injection", () => {
         '[data-testid="lyrics-npv-section"] .rosetta-translation-line',
       )?.textContent,
     ).toBe("同一句歌词译文");
+    renderer.dispose();
+  });
+
+  it("seeks the corresponding timestamp when a translated line is clicked", async () => {
+    document.body.innerHTML = `
+      <div data-testid="lyrics-npv-section">
+        <div>Seekable lyric</div>
+        <div>Second seekable lyric</div>
+      </div>
+    `;
+    const seek = vi.fn();
+    window.Spicetify = { Player: { seek } } as never;
+    const renderer = new NativeLyricsRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      result: makeResult({
+        fidelity: "line",
+        translationCoverage: 1,
+        lines: [
+          {
+            startMs: 12_345,
+            original: "Seekable lyric",
+            translation: "可跳转译文",
+          },
+          {
+            startMs: 23_456,
+            original: "Second seekable lyric",
+            translation: "第二句可跳转译文",
+          },
+        ],
+      }),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const translations = [
+      ...document.querySelectorAll<HTMLElement>(".rosetta-translation-line"),
+    ];
+    expect(translations).toHaveLength(2);
+    translations[1]?.click();
+    expect(seek).toHaveBeenCalledWith(23_456);
+    renderer.dispose();
+  });
+
+  it("does not make synthetic plain-text timestamps seekable", async () => {
+    document.body.innerHTML = `
+      <div data-testid="lyrics-npv-section">
+        <div>Untimed lyric</div>
+        <div>Another untimed lyric</div>
+      </div>
+    `;
+    const seek = vi.fn();
+    window.Spicetify = { Player: { seek } } as never;
+    const renderer = new NativeLyricsRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      result: makeResult({
+        fidelity: "line",
+        translationCoverage: 1,
+        lines: [
+          {
+            startMs: 0,
+            original: "Untimed lyric",
+            translation: "非同步译文一",
+          },
+          {
+            startMs: 1_000,
+            original: "Another untimed lyric",
+            translation: "非同步译文二",
+          },
+        ],
+      }),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const translation =
+      document.querySelector<HTMLElement>(".rosetta-translation-line");
+    expect(translation?.classList.contains("is-seekable")).toBe(false);
+    expect(translation?.hasAttribute("role")).toBe(false);
+    translation?.click();
+    expect(seek).not.toHaveBeenCalled();
     renderer.dispose();
   });
 

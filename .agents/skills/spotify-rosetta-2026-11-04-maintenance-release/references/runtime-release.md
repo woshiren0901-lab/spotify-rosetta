@@ -9,6 +9,9 @@
 - Do not insert the Now Playing fallback when native lyric content is present;
   doing so creates duplicate lyrics.
 - Observe Spotify re-renders and re-place the project container idempotently.
+- Treat desktop lyrics as an optional Document Picture-in-Picture surface. It
+  must require a user-gesture toggle, mirror playback, and disable the setting
+  when the user closes the PiP window.
 - Never remove or directly replace React-owned native lyric nodes merely to test
   a fallback; DOM removal can destabilize Spotify. Verify no-native behavior with
   synthetic DOM fixtures and, when possible, a genuinely lyric-less track.
@@ -51,6 +54,7 @@ Cover behavior, not wording snapshots:
 - no duplicate insertion during React re-render;
 - Now Playing fallback only when native lyrics are absent/empty;
 - cleanup on disable and song change;
+- desktop lyrics lifecycle, row range, active-line styling, and click-to-seek;
 - provider identity and lyric-sequence rejection;
 - cache behavior and language-version conflicts.
 
