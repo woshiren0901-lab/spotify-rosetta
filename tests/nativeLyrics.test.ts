@@ -60,7 +60,50 @@ describe("native Spotify lyrics injection", () => {
       "我能看见光",
       "我能看见光",
     ]);
-    expect(document.querySelectorAll(".rosetta-status-badge")).toHaveLength(1);
+    expect(document.querySelectorAll(".rosetta-status-badge")).toHaveLength(2);
+    renderer.dispose();
+  });
+
+  it("never injects translation into matching track-title text outside lyrics surfaces", async () => {
+    document.body.innerHTML = `
+      <aside>
+        <a href="/track/example">Same lyric line</a>
+        <div data-testid="lyrics-npv-section">
+          <div>Same lyric line</div>
+        </div>
+      </aside>
+    `;
+    const renderer = new NativeLyricsRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      result: makeResult({
+        fidelity: "line",
+        translationCoverage: 1,
+        lines: [
+          {
+            startMs: 1_000,
+            original: "Same lyric line",
+            translation: "同一句歌词译文",
+          },
+        ],
+      }),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(document.querySelectorAll(".rosetta-translation-line")).toHaveLength(
+      1,
+    );
+    expect(
+      document.querySelector('a[href="/track/example"] .rosetta-translation-line'),
+    ).toBeNull();
+    expect(
+      document.querySelector(
+        '[data-testid="lyrics-npv-section"] .rosetta-translation-line',
+      )?.textContent,
+    ).toBe("同一句歌词译文");
     renderer.dispose();
   });
 

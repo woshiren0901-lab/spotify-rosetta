@@ -53,6 +53,46 @@ function isVisible(element: Element): boolean {
   return element.isConnected;
 }
 
+function closestCommonAncestor(
+  left: Element,
+  right: Element,
+  boundary: Element,
+): HTMLElement | undefined {
+  let ancestor = left.parentElement;
+  while (
+    ancestor &&
+    ancestor !== boundary &&
+    !ancestor.contains(right)
+  ) {
+    ancestor = ancestor.parentElement;
+  }
+  return ancestor && ancestor !== boundary ? ancestor : undefined;
+}
+
+function verticalPlacement(
+  block: HTMLElement,
+  boundary: HTMLElement,
+): { parent: HTMLElement; before: ChildNode | null } | undefined {
+  let candidate = block;
+  while (candidate.parentElement && candidate.parentElement !== boundary) {
+    const parent = candidate.parentElement;
+    const style = window.getComputedStyle?.(parent);
+    const isHorizontalFlex =
+      style?.display?.includes("flex") &&
+      (style.flexDirection === "row" ||
+        style.flexDirection === "row-reverse");
+    if (isHorizontalFlex) {
+      candidate = parent;
+      continue;
+    }
+    return {
+      parent,
+      before: candidate.nextSibling,
+    };
+  }
+  return undefined;
+}
+
 function textOfLine(line: LyricsLine): string {
   return (
     line.translation?.trim() ||
@@ -268,6 +308,33 @@ export class NowPlayingPanelRenderer {
       };
     }
 
+    const titleLinks = [
+      ...panel.querySelectorAll<HTMLAnchorElement>(
+        'a[href*="/track/"], a[href^="/track/"], a[href*="/album/"], a[href^="/album/"]',
+      ),
+    ].filter((link) => Boolean(link.textContent?.trim()));
+    const artistLinks = [
+      ...panel.querySelectorAll<HTMLAnchorElement>(
+        'a[href*="/artist/"], a[href^="/artist/"]',
+      ),
+    ].filter((link) => Boolean(link.textContent?.trim()));
+    let compactBlock: HTMLElement | undefined;
+    let compactTextLength = Number.POSITIVE_INFINITY;
+    for (const titleLink of titleLinks) {
+      for (const artistLink of artistLinks) {
+        const block = closestCommonAncestor(titleLink, artistLink, panel);
+        if (!block?.parentElement) continue;
+        const textLength = (block.textContent ?? "").replace(/\s+/g, "").length;
+        if (textLength >= compactTextLength) continue;
+        compactBlock = block;
+        compactTextLength = textLength;
+      }
+    }
+    if (compactBlock?.parentElement) {
+      const placement = verticalPlacement(compactBlock, panel);
+      if (placement) return placement;
+    }
+
     const visual = panel.querySelector<HTMLElement>(
       '[data-testid="minimized-track-visual-enhancement"]',
     );
@@ -285,23 +352,6 @@ export class NowPlayingPanelRenderer {
       return { parent: block.parentElement ?? panel, before: block.nextSibling };
     }
 
-    const titleLink = panel.querySelector<HTMLAnchorElement>(
-      'a[href^="/album/"], a[href^="/track/"], a[href*="/album/"], a[href*="/track/"]',
-    );
-    if (titleLink) {
-      let candidate: HTMLElement = titleLink;
-      while (candidate.parentElement && candidate.parentElement !== panel) {
-        const parent = candidate.parentElement;
-        if (
-          candidate.querySelector('a[href^="/artist/"], a[href*="/artist/"]') &&
-          parent.children.length >= 3
-        ) {
-          return { parent, before: candidate.nextSibling };
-        }
-        candidate = parent;
-      }
-    }
-
     const firstSection = panel.querySelector<HTMLElement>(
       ".main-nowPlayingView-section",
     );
@@ -313,9 +363,12 @@ export class NowPlayingPanelRenderer {
 
   private placePanel(panel: HTMLElement, container: HTMLElement): void {
     const placement = this.panelPlacement(panel);
+    const alreadyPlaced =
+      container.parentElement === placement.parent &&
+      (container.nextSibling === placement.before ||
+        placement.before === container);
     if (
-      container.parentElement !== placement.parent ||
-      container.nextSibling !== placement.before
+      !alreadyPlaced
     ) {
       placement.parent.insertBefore(container, placement.before);
     }

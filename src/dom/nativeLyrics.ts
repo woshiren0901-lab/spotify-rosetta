@@ -90,10 +90,18 @@ function isExcluded(element: Element): boolean {
   });
 }
 
-function elementForText(node: Text, key: string): HTMLElement | undefined {
+function elementForText(
+  node: Text,
+  key: string,
+  boundary: HTMLElement,
+): HTMLElement | undefined {
   let candidate: Element | null = node.parentElement;
   let fallback: HTMLElement | undefined;
-  for (let depth = 0; candidate && depth < 6; depth += 1) {
+  for (
+    let depth = 0;
+    candidate && depth < 6 && boundary.contains(candidate);
+    depth += 1
+  ) {
     if (candidate instanceof HTMLElement && !isExcluded(candidate)) {
       const normalized = normalizeLyricText(candidate.textContent ?? "");
       if (normalized === key) {
@@ -369,32 +377,31 @@ export class NativeLyricsRenderer {
       this.removeStaleTranslations();
       const lookup = this.translationLookup;
       const seenElements = new Set<HTMLElement>();
-      const injectedElements: HTMLElement[] = [];
       this.segmentNodes = [];
 
-      const walker = this.root.createTreeWalker(
-        this.root.body,
-        NodeFilter.SHOW_TEXT,
-      );
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (!(node instanceof Text)) continue;
-        const rawText = node.nodeValue?.trim() ?? "";
-        if (!rawText || rawText.length > 320) continue;
-        const key = normalizeLyricText(rawText);
-        if (!key) continue;
-        const line = findTranslationLine(lookup, key);
-        if (!line) continue;
-        const element = elementForText(node, key);
-        if (!element || seenElements.has(element)) continue;
-        seenElements.add(element);
-        this.injectLine(element, line);
-        injectedElements.push(element);
-      }
+      for (const surface of this.findLyricsSurfaces()) {
+        let surfaceInjected = 0;
+        const walker = this.root.createTreeWalker(
+          surface,
+          NodeFilter.SHOW_TEXT,
+        );
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!(node instanceof Text)) continue;
+          const rawText = node.nodeValue?.trim() ?? "";
+          if (!rawText || rawText.length > 320) continue;
+          const key = normalizeLyricText(rawText);
+          if (!key) continue;
+          const line = findTranslationLine(lookup, key);
+          if (!line) continue;
+          const element = elementForText(node, key, surface);
+          if (!element || seenElements.has(element)) continue;
+          seenElements.add(element);
+          this.injectLine(element, line);
+          surfaceInjected += 1;
+        }
 
-      const surface = this.findLyricsSurface();
-      if (surface) {
         this.ensureStatus(surface, statusFor(this.state));
-        if (injectedElements.length === 0) {
+        if (surfaceInjected === 0) {
           this.ensureThirdPartyFallback(surface);
         }
         this.ensureUnsyncedBlock(surface);
@@ -466,7 +473,7 @@ export class NativeLyricsRenderer {
     }
   }
 
-  private findLyricsSurface(): HTMLElement | undefined {
+  private findLyricsSurfaces(): HTMLElement[] {
     const found = new Set<HTMLElement>();
     for (const selector of SURFACE_SELECTORS) {
       for (const element of this.root.querySelectorAll<HTMLElement>(selector)) {
@@ -474,16 +481,13 @@ export class NativeLyricsRenderer {
         found.add(element);
       }
     }
-    return [...found].sort((left, right) => {
-      const leftLyrics = left.querySelectorAll(
-        `[${TRANSLATION_ATTRIBUTE}]`,
-      ).length;
-      const rightLyrics = right.querySelectorAll(
-        `[${TRANSLATION_ATTRIBUTE}]`,
-      ).length;
-      if (leftLyrics !== rightLyrics) return rightLyrics - leftLyrics;
-      return left.textContent.length - right.textContent.length;
-    })[0];
+    const candidates = [...found];
+    return candidates.filter(
+      (candidate) =>
+        !candidates.some(
+          (other) => other !== candidate && candidate.contains(other),
+        ),
+    );
   }
 
   private ensureStatus(surface: HTMLElement, text: string | undefined): void {

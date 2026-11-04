@@ -130,6 +130,59 @@ describe("Now Playing fallback panel", () => {
     ).toBe(false);
   });
 
+  it("places lyrics after title/artist and before the artist biography", async () => {
+    document.body.innerHTML = `
+      <style>
+        .track-details { display: flex; flex-direction: column; }
+        .track-row { display: flex; flex-direction: row; }
+      </style>
+      <aside id="Desktop_PanelContainer_Id" aria-label="当前播放视图">
+        <div data-npv-root="true">
+          <div class="panel-scroll">
+            <div class="scroll-content">
+              <div class="track-header">
+                <a href="/track/example">Example Song</a>
+              </div>
+              <div class="track-details">
+                <a href="/album/example" aria-label="Cover"></a>
+                <div class="track-row">
+                  <div class="track-title-artist">
+                    <div><a href="/album/example">Example Song</a></div>
+                    <div><a href="/artist/example">Example Artist</a></div>
+                  </div>
+                  <button>More</button>
+                </div>
+                <section class="artist-about">About artist bio</section>
+                <section class="next-in-queue">Next song</section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    `;
+    const renderer = new NowPlayingPanelRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      result: makeResult(),
+      statusText: "逐行翻译",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const panel = document.querySelector(".rosetta-now-playing-panel");
+    expect(panel?.parentElement?.className).toBe("track-details");
+    expect(panel?.previousElementSibling?.className).toBe("track-row");
+    expect(panel?.nextElementSibling?.className).toBe("artist-about");
+    const placementParent = panel?.parentElement;
+    renderer.refresh();
+    expect(panel?.parentElement).toBe(placementParent);
+    expect(panel?.previousElementSibling?.className).toBe("track-row");
+    expect(panel?.nextElementSibling?.className).toBe("artist-about");
+    renderer.dispose();
+  });
+
   it("supports the hashed current Spotify Now Playing structure", async () => {
     document.body.innerHTML = `
       <aside id="Desktop_PanelContainer_Id" aria-label="当前播放视图">

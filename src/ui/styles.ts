@@ -40,13 +40,13 @@ export const ROSETTA_CSS = `
   display: flex !important;
   flex: 1 1 auto !important;
   flex-direction: column !important;
-  min-height: 220px !important;
-  max-height: 52vh !important;
-  margin: 12px 0 4px !important;
-  padding: 12px !important;
-  border: 1px solid rgba(255,255,255,.1) !important;
-  border-radius: 10px !important;
-  background: rgba(0,0,0,.22) !important;
+  min-height: 250px !important;
+  max-height: 58vh !important;
+  margin: 8px 0 16px !important;
+  padding: 0 4px 4px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   overflow: hidden !important;
 }
 .rosetta-now-playing-header {
@@ -54,19 +54,19 @@ export const ROSETTA_CSS = `
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 9px;
+  padding: 0 0 10px;
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .rosetta-now-playing-title {
   color: var(--spice-text, #fff);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 .rosetta-now-playing-status {
   min-width: 0;
   overflow: hidden;
   color: var(--spice-subtext, #b3b3b3);
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -74,32 +74,35 @@ export const ROSETTA_CSS = `
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: 8px;
+  margin-top: 6px;
+  padding-right: 2px;
   overflow: auto;
   scrollbar-width: thin;
   mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
 }
 .rosetta-now-playing-line {
-  padding: 7px 6px;
+  padding: 9px 2px;
   border-radius: 6px;
-  opacity: .52;
+  opacity: .42;
   transition: opacity 180ms ease, background 180ms ease;
 }
 .rosetta-now-playing-line.is-active {
   opacity: 1;
-  background: rgba(255,255,255,.07);
+  background: transparent;
 }
 .rosetta-now-playing-original {
   color: var(--spice-text, #fff);
-  font-size: 15px;
-  font-weight: 750;
-  line-height: 1.35;
+  font-size: 22px;
+  font-weight: 760;
+  line-height: 1.32;
+  letter-spacing: -.02em;
 }
 .rosetta-now-playing-translation {
-  margin-top: 3px;
+  margin-top: 4px;
   color: var(--spice-subtext, rgba(255,255,255,.74));
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 14px;
+  font-weight: 520;
+  line-height: 1.42;
 }
 .rosetta-now-playing-empty,
 .rosetta-now-playing-unsynced {
