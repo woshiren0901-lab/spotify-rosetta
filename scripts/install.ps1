@@ -1,4 +1,4 @@
-[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
+﻿[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [switch]$SkipBuild,
   [switch]$NoRestart,
@@ -17,6 +17,12 @@ $SpicetifyWingetPackages = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Package
 $SpicetifyConfigRoot = Join-Path $env:APPDATA "spicetify"
 $SpicetifyExtensions = Join-Path $SpicetifyConfigRoot "Extensions"
 $DistFile = Join-Path $ProjectRoot "dist\$ExtensionName"
+$OverlaySource = Join-Path $ProjectRoot "native\bin\SpotifyRosettaOverlay.exe"
+$OverlayInstallRoot = Join-Path $env:LOCALAPPDATA "SpotifyRosetta"
+$OverlayInstallFile = Join-Path $OverlayInstallRoot "SpotifyRosettaOverlay.exe"
+$OverlayProtocolRoot = "HKCU:\Software\Classes\spotify-rosetta-overlay"
+$OverlayRunKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+$OverlayRunValue = "SpotifyRosettaOverlay"
 
 function Assert-NotAdministrator {
   $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -167,6 +173,9 @@ if (-not $SkipBuild) {
 if (-not (Test-Path -LiteralPath $DistFile -PathType Leaf)) {
   throw "构建产物不存在：$DistFile"
 }
+if (-not (Test-Path -LiteralPath $OverlaySource -PathType Leaf)) {
+  throw "原生桌面歌词组件不存在：$OverlaySource"
+}
 
 $spicetify = Resolve-Spicetify
 if (-not $spicetify) {
@@ -204,6 +213,25 @@ if ($PSCmdlet.ShouldProcess($SpicetifyExtensions, "复制 Spotify Rosetta 扩展
   Copy-Item -LiteralPath $DistFile -Destination (Join-Path $SpicetifyExtensions $ExtensionName) -Force
 }
 
+if ($PSCmdlet.ShouldProcess($OverlayInstallRoot, "安装原生桌面歌词组件并注册后台启动")) {
+  New-Item -ItemType Directory -Path $OverlayInstallRoot -Force | Out-Null
+  Get-Process -Name SpotifyRosettaOverlay -ErrorAction SilentlyContinue |
+    Stop-Process -Force
+  Copy-Item -LiteralPath $OverlaySource -Destination $OverlayInstallFile -Force
+
+  if (Test-Path -LiteralPath $OverlayProtocolRoot) {
+    Remove-Item -LiteralPath $OverlayProtocolRoot -Recurse -Force
+  }
+
+  New-Item -Path $OverlayRunKey -Force | Out-Null
+  New-ItemProperty -Path $OverlayRunKey -Name $OverlayRunValue `
+    -Value "`"$OverlayInstallFile`" --background" `
+    -PropertyType String -Force | Out-Null
+
+  Start-Process -FilePath $OverlayInstallFile -ArgumentList "--background" `
+    -WindowStyle Hidden
+}
+
 if ($PSCmdlet.ShouldProcess("Spicetify 配置", "启用 Spotify Rosetta")) {
   Invoke-Spicetify $spicetify "config" "extensions" $ExtensionName
   Invoke-Spicetify $spicetify "apply"
@@ -212,6 +240,7 @@ if ($PSCmdlet.ShouldProcess("Spicetify 配置", "启用 Spotify Rosetta")) {
 Write-Host ""
 Write-Host "Spotify Rosetta 安装完成。" -ForegroundColor Green
 Write-Host "扩展文件：$(Join-Path $SpicetifyExtensions $ExtensionName)"
+Write-Host "桌面歌词组件：$OverlayInstallFile"
 Write-Host "右键播放栏 Rosetta 按钮可打开设置和手动选源。"
 
 if (-not $NoRestart) {

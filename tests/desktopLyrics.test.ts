@@ -3,8 +3,13 @@ import { DEFAULT_SETTINGS } from "../src/core/settings";
 import {
   DesktopLyricsRenderer,
   buildDesktopLyricsRows,
+  buildNativeDesktopLyricsFrame,
 } from "../src/dom/desktopLyrics";
-import type { LyricsLine, ProviderResult } from "../src/types";
+import type {
+  LyricsLine,
+  ProviderResult,
+  TrackInfo,
+} from "../src/types";
 
 const lines: LyricsLine[] = [
   { startMs: 0, original: "Line one", translation: "第一句" },
@@ -14,7 +19,16 @@ const lines: LyricsLine[] = [
   { startMs: 38_400, original: "Line five", translation: "第五句" },
 ];
 
-function result(): ProviderResult {
+const track: TrackInfo = {
+  id: "track",
+  uri: "spotify:track:track",
+  title: "Song",
+  artists: ["Artist"],
+  album: "Album",
+  durationMs: 100_000,
+};
+
+function result(overrides: Partial<ProviderResult> = {}): ProviderResult {
   return {
     providerId: "netease",
     candidate: {
@@ -23,7 +37,7 @@ function result(): ProviderResult {
       title: "Song",
       artists: ["Artist"],
       album: "Album",
-      durationMs: 180_000,
+      durationMs: 100_000,
       sourceLabel: "网易云音乐",
     },
     matchScore: 1,
@@ -31,241 +45,174 @@ function result(): ProviderResult {
     fidelity: "line",
     lines,
     fetchedAt: 1,
+    ...overrides,
   };
 }
 
+function nativeState(overrides: Partial<ProviderResult> = {}) {
+  return {
+    enabled: true,
+    settings: {
+      ...DEFAULT_SETTINGS,
+      desktopLyricsEnabled: true,
+    },
+    track,
+    result: result(overrides),
+  };
+}
+
+function helperResponse(url: string): Response {
+  if (url.endsWith("/health")) {
+    return new Response(
+      JSON.stringify({ version: 1, token: "test-token" }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+  if (url.endsWith("/state") || url.endsWith("/hide")) {
+    return new Response(null, { status: 204 });
+  }
+  return new Response(JSON.stringify({ type: "none" }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 afterEach(() => {
-  delete (window as Window & { documentPictureInPicture?: unknown })
-    .documentPictureInPicture;
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
   window.Spicetify = undefined;
 });
 
-describe("desktop lyrics", () => {
+describe("native desktop lyrics", () => {
   it("selects the previous, current and next two lines", () => {
     const rows = buildDesktopLyricsRows(lines, 2);
     expect(rows.map((row) => row.index)).toEqual([1, 2, 3, 4]);
     expect(rows.map((row) => row.active)).toEqual([false, true, false, false]);
-    expect(rows.map((row) => row.line?.original)).toEqual([
+  });
+
+  it("builds four native rows with seekable timestamps", () => {
+    const frame = buildNativeDesktopLyricsFrame(nativeState(), 20_000);
+    expect(frame.visible).toBe(true);
+    expect(frame.rows.map((row) => row.original)).toEqual([
       "Line two",
       "Line three",
       "Line four",
       "Line five",
     ]);
+    expect(frame.rows[1]).toMatchObject({
+      active: true,
+      seekable: true,
+      startMs: 17_200,
+    });
   });
 
-  it("renders a transparent four-line window and seeks on click", async () => {
-    const pipDocument = document.implementation.createHTMLDocument(
-      "Desktop lyrics",
+  it("auto-scrolls untimed lyrics without making them seekable", () => {
+    const untimed = Array.from({ length: 10 }, (_, index) => ({
+      startMs: 0,
+      original: `Untimed line ${index + 1}`,
+    }));
+    const frame = buildNativeDesktopLyricsFrame(
+      nativeState({ fidelity: "original-only", lines: untimed }),
+      55_000,
     );
-    const pipWindow = {
-      closed: false,
-      document: pipDocument,
-      addEventListener: vi.fn(),
-      close: vi.fn(),
-    } as unknown as Window;
-    const requestWindow = vi.fn(async () => pipWindow);
-    Object.defineProperty(window, "documentPictureInPicture", {
-      configurable: true,
-      value: { requestWindow },
+    expect(frame.rows[1]).toMatchObject({
+      original: "Untimed line 6",
+      active: true,
+      seekable: false,
+      startMs: 0,
     });
+    const shifted = buildNativeDesktopLyricsFrame(
+      nativeState({ fidelity: "original-only", lines: untimed }),
+      55_000,
+      -1,
+    );
+    expect(shifted.rows[1]?.original).toBe("Untimed line 5");
+  });
+
+  it("persists per-track display calibration without enabling seek", () => {
+    const untimed = Array.from({ length: 6 }, (_, index) => ({
+      startMs: 0,
+      original: `Calibration line ${index + 1}`,
+    }));
+    const renderer = new DesktopLyricsRenderer();
+    const disabledState = {
+      ...nativeState({ fidelity: "original-only", lines: untimed }),
+      enabled: false,
+    };
+    renderer.setState(disabledState);
+    expect(renderer.getLineOffset()).toBe(0);
+    expect(renderer.adjustLineOffset(2)).toBe(2);
+    expect(renderer.getLineOffset()).toBe(2);
+    const next = new DesktopLyricsRenderer();
+    next.setState(disabledState);
+    expect(next.getLineOffset()).toBe(2);
+    renderer.dispose();
+    next.dispose();
+  });
+
+  it("posts the native frame and forwards helper seek events", async () => {
+    vi.useFakeTimers();
     const seek = vi.fn();
     window.Spicetify = { Player: { seek } } as never;
+    const fetchMock = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/events")) {
+          return new Response(
+            JSON.stringify({ type: "seek", startMs: 17_200 }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+        return helperResponse(url);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = new DesktopLyricsRenderer();
+    renderer.setState(nativeState());
+    renderer.setProgress(20_000);
+    expect(await renderer.setEnabled(true)).toBe(true);
+    await vi.advanceTimersByTimeAsync(200);
+
+    const stateBodies = fetchMock.mock.calls
+      .filter(([url]) => String(url).endsWith("/state"))
+      .map(
+        ([, init]) =>
+          JSON.parse(String(init?.body)) as {
+            visible: boolean;
+            rows: Array<{ original: string }>;
+          },
+      );
+    expect(
+      stateBodies.some(
+        (body) => body.visible && body.rows.length === 4,
+      ),
+    ).toBe(true);
+    expect(seek).toHaveBeenCalledWith(17_200);
+    renderer.dispose();
+  });
+
+  it("does not contact the native helper while disabled", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const renderer = new DesktopLyricsRenderer();
     renderer.setState({
-      enabled: true,
-      settings: {
-        ...DEFAULT_SETTINGS,
-        desktopLyricsPinned: true,
-      },
-      track: {
-        id: "track",
-        uri: "spotify:track:track",
-        title: "Song",
-        artists: ["Artist"],
-        album: "Album",
-        durationMs: 180_000,
-      },
+      enabled: false,
+      settings: DEFAULT_SETTINGS,
+      track,
       result: result(),
     });
-
-    expect(await renderer.setEnabled(true)).toBe(true);
     renderer.setProgress(20_000);
-
-    const rows = [
-      ...pipDocument.querySelectorAll<HTMLElement>(
-        ".rosetta-desktop-line",
-      ),
-    ];
-    expect(rows).toHaveLength(4);
-    expect(rows[1]?.classList.contains("is-active")).toBe(true);
-    expect(rows[1]?.textContent).toContain("Line three");
-    expect(rows[1]?.textContent).toContain("第三句");
-    rows[2]?.click();
-    expect(seek).toHaveBeenCalledWith(26_900);
-    expect(pipDocument.body.style.background).not.toMatch(/rgba?\(/);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetchMock).not.toHaveBeenCalled();
     renderer.dispose();
-  });
-
-  it("does not make synthetic plain-text timestamps seekable", async () => {
-    const pipDocument = document.implementation.createHTMLDocument(
-      "Desktop lyrics",
-    );
-    const pipWindow = {
-      closed: false,
-      document: pipDocument,
-      addEventListener: vi.fn(),
-      close: vi.fn(),
-    } as unknown as Window;
-    Object.defineProperty(window, "documentPictureInPicture", {
-      configurable: true,
-      value: { requestWindow: vi.fn(async () => pipWindow) },
-    });
-    const seek = vi.fn();
-    window.Spicetify = { Player: { seek } } as never;
-    const renderer = new DesktopLyricsRenderer();
-    renderer.setState({
-      enabled: true,
-      settings: {
-        ...DEFAULT_SETTINGS,
-        desktopLyricsPinned: true,
-      },
-      track: {
-        id: "track",
-        uri: "spotify:track:track",
-        title: "Song",
-        artists: ["Artist"],
-        album: "Album",
-        durationMs: 180_000,
-      },
-      result: {
-        ...result(),
-        fidelity: "line",
-        lines: [
-          { startMs: 0, original: "Untimed lyric", translation: "译文一" },
-          {
-            startMs: 1_000,
-            original: "Another untimed lyric",
-            translation: "译文二",
-          },
-        ],
-      },
-    });
-
-    expect(await renderer.setEnabled(true)).toBe(true);
-    const rows = [
-      ...pipDocument.querySelectorAll<HTMLElement>(
-        ".rosetta-desktop-line",
-      ),
-    ];
-    expect(rows.every((row) => !row.classList.contains("is-seekable"))).toBe(
-      true,
-    );
-    rows[0]?.click();
-    expect(seek).not.toHaveBeenCalled();
-    renderer.dispose();
-  });
-
-  it("auto-scrolls untimed lyrics without enabling seeking", async () => {
-    const pipDocument = document.implementation.createHTMLDocument(
-      "Desktop lyrics",
-    );
-    const pipWindow = {
-      closed: false,
-      document: pipDocument,
-      addEventListener: vi.fn(),
-      close: vi.fn(),
-    } as unknown as Window;
-    Object.defineProperty(window, "documentPictureInPicture", {
-      configurable: true,
-      value: { requestWindow: vi.fn(async () => pipWindow) },
-    });
-    const seek = vi.fn();
-    window.Spicetify = { Player: { seek } } as never;
-    const renderer = new DesktopLyricsRenderer();
-    renderer.setState({
-      enabled: true,
-      settings: {
-        ...DEFAULT_SETTINGS,
-        desktopLyricsPinned: true,
-      },
-      track: {
-        id: "track",
-        uri: "spotify:track:track",
-        title: "Song",
-        artists: ["Artist"],
-        album: "Album",
-        durationMs: 100_000,
-      },
-      result: {
-        ...result(),
-        fidelity: "original-only",
-        lines: Array.from({ length: 10 }, (_, index) => ({
-          startMs: 0,
-          original: `Untimed line ${index + 1}`,
-        })),
-      },
-    });
-
-    expect(await renderer.setEnabled(true)).toBe(true);
-    renderer.setProgress(55_000);
-    const rows = [
-      ...pipDocument.querySelectorAll<HTMLElement>(
-        ".rosetta-desktop-line",
-      ),
-    ];
-    expect(rows[1]?.classList.contains("is-active")).toBe(true);
-    expect(rows[1]?.textContent).toContain("Untimed line 6");
-    expect(rows.every((row) => !row.classList.contains("is-seekable"))).toBe(
-      true,
-    );
-    rows[1]?.click();
-    expect(seek).not.toHaveBeenCalled();
-    renderer.dispose();
-  });
-
-  it("renders a truly transparent in-page overlay", async () => {
-    const renderer = new DesktopLyricsRenderer(undefined, "overlay");
-    renderer.setState({
-      enabled: true,
-      settings: {
-        ...DEFAULT_SETTINGS,
-        desktopLyricsEnabled: true,
-      },
-      track: {
-        id: "track",
-        uri: "spotify:track:track",
-        title: "Song",
-        artists: ["Artist"],
-        album: "Album",
-        durationMs: 100_000,
-      },
-      result: {
-        ...result(),
-        fidelity: "original-only",
-        lines: Array.from({ length: 10 }, (_, index) => ({
-          startMs: 0,
-          original: `Overlay line ${index + 1}`,
-        })),
-      },
-    });
-
-    expect(await renderer.setEnabled(true)).toBe(true);
-    renderer.setProgress(55_000);
-    const root = document.querySelector<HTMLElement>(
-      "#rosetta-desktop-lyrics",
-    );
-    expect(root).not.toBeNull();
-    expect(root?.style.background).toBe("");
-    expect(
-      document.querySelector<HTMLStyleElement>(
-        "#rosetta-desktop-lyrics-style-overlay",
-      )?.textContent,
-    ).toContain("background: transparent !important");
-    expect(root?.style.pointerEvents).toBe("");
-    expect(root?.querySelector(".is-active")?.textContent).toContain(
-      "Overlay line 6",
-    );
-    renderer.dispose();
-    expect(document.querySelector("#rosetta-desktop-lyrics")).toBeNull();
   });
 });

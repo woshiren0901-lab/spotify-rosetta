@@ -41,6 +41,44 @@ export function estimatedLyricLineIndex(
   );
 }
 
+function estimatedLineWeight(line: LyricsLine): number {
+  const text =
+    line.original.trim() ||
+    line.translation?.trim() ||
+    line.translationSegments?.map((segment) => segment.text).join("") ||
+    "";
+  const length = Array.from(text).length;
+  const pauseCount = (text.match(/[，。！？,.!?；;、…]/g) ?? []).length;
+  return Math.max(6, Math.min(48, length + pauseCount * 2));
+}
+
+export function estimatedLyricLineIndexForLines(
+  lines: LyricsLine[],
+  progressMs: number,
+  durationMs: number,
+  offset = 0,
+): number {
+  if (!lines.length) return -1;
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    return Math.max(0, Math.min(lines.length - 1, offset));
+  }
+
+  const weights = lines.map(estimatedLineWeight);
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const ratio = Math.max(0, Math.min(1, progressMs / durationMs));
+  const targetWeight = ratio * totalWeight;
+  let cumulative = 0;
+  let estimated = lines.length - 1;
+  for (let index = 0; index < weights.length; index += 1) {
+    cumulative += weights[index] ?? 1;
+    if (targetWeight < cumulative) {
+      estimated = index;
+      break;
+    }
+  }
+  return Math.max(0, Math.min(lines.length - 1, estimated + offset));
+}
+
 export function canSeekLyrics(result: ProviderResult | undefined): boolean {
   if (
     !result ||

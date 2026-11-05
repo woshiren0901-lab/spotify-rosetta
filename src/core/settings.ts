@@ -10,7 +10,6 @@ export const DEFAULT_SETTINGS: RosettaSettings = {
   wordHighlight: true,
   showNowPlayingFallback: true,
   desktopLyricsEnabled: false,
-  desktopLyricsPinned: false,
   cacheLimit: 500,
   providers: {
     netease: true,
@@ -65,8 +64,6 @@ export function normalizeSettings(value: unknown): RosettaSettings {
       input.showNowPlayingFallback ?? DEFAULT_SETTINGS.showNowPlayingFallback,
     desktopLyricsEnabled:
       input.desktopLyricsEnabled ?? DEFAULT_SETTINGS.desktopLyricsEnabled,
-    desktopLyricsPinned:
-      input.desktopLyricsPinned ?? DEFAULT_SETTINGS.desktopLyricsPinned,
     cacheLimit: Math.max(
       50,
       Math.min(2_000, Number(input.cacheLimit) || DEFAULT_SETTINGS.cacheLimit),

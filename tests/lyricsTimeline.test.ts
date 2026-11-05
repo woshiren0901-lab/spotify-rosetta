@@ -3,6 +3,7 @@ import {
   canSeekLyricLine,
   canSeekLyrics,
   estimatedLyricLineIndex,
+  estimatedLyricLineIndexForLines,
   hasReliableLyricsTimeline,
 } from "../src/core/lyricsTimeline";
 import type { ProviderResult } from "../src/types";
@@ -83,5 +84,21 @@ describe("lyrics timeline seeking", () => {
     expect(estimatedLyricLineIndex(10, 0, 100_000)).toBe(0);
     expect(estimatedLyricLineIndex(10, 50_000, 100_000)).toBe(5);
     expect(estimatedLyricLineIndex(10, 100_000, 100_000)).toBe(9);
+  });
+
+  it("weights estimated display time by lyric line length", () => {
+    const weighted = [
+      { startMs: 0, original: "甲".repeat(30) },
+      { startMs: 0, original: "乙".repeat(10) },
+    ];
+    expect(
+      estimatedLyricLineIndexForLines(weighted, 50_000, 100_000),
+    ).toBe(0);
+    expect(
+      estimatedLyricLineIndexForLines(weighted, 50_000, 100_000, 1),
+    ).toBe(1);
+    expect(
+      estimatedLyricLineIndexForLines(weighted, 90_000, 100_000),
+    ).toBe(1);
   });
 });

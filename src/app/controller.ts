@@ -133,7 +133,6 @@ export class RosettaController {
   private readonly renderer: NativeLyricsRenderer;
   private readonly nowPlayingRenderer: NowPlayingPanelRenderer;
   private readonly desktopLyricsRenderer: DesktopLyricsRenderer;
-  private readonly transparentLyricsRenderer: DesktopLyricsRenderer;
   private readonly providers: LyricsProvider[];
   private readonly listeners = new Set<UpdateListener>();
   private readonly cooldowns = new Map<ProviderId, number>();
@@ -158,17 +157,13 @@ export class RosettaController {
     renderer: NativeLyricsRenderer = new NativeLyricsRenderer(),
     nowPlayingRenderer: NowPlayingPanelRenderer = new NowPlayingPanelRenderer(),
     desktopLyricsRenderer?: DesktopLyricsRenderer,
-    transparentLyricsRenderer?: DesktopLyricsRenderer,
   ) {
     this.providers = providers;
     this.renderer = renderer;
     this.nowPlayingRenderer = nowPlayingRenderer;
     this.settings = loadSettings();
     this.desktopLyricsRenderer =
-      desktopLyricsRenderer ??
-      new DesktopLyricsRenderer(() => this.handleDesktopLyricsClosed());
-    this.transparentLyricsRenderer =
-      transparentLyricsRenderer ?? new DesktopLyricsRenderer(undefined, "overlay");
+      desktopLyricsRenderer ?? new DesktopLyricsRenderer();
     this.cache = new RosettaCache(
       "spotify-rosetta",
       () => this.settings,
@@ -180,13 +175,6 @@ export class RosettaController {
     this.started = true;
     this.renderer.start();
     this.nowPlayingRenderer.start();
-    if (this.settings.desktopLyricsPinned) {
-      this.settings = {
-        ...this.settings,
-        desktopLyricsPinned: false,
-      };
-      saveSettings(this.settings);
-    }
     const player = window.Spicetify?.Player;
     player?.addEventListener?.("songchange", this.handleSongChange);
     player?.addEventListener?.("appchange", this.handleSongChange);
@@ -206,14 +194,10 @@ export class RosettaController {
         this.renderer.setProgress(progress);
         this.nowPlayingRenderer.setProgress(progress);
         this.desktopLyricsRenderer.setProgress(progress);
-        this.transparentLyricsRenderer.setProgress(progress);
       }
     }, 50);
 
     void this.refreshCurrent(false);
-    if (this.settings.desktopLyricsEnabled) {
-      void this.enableTransparentLyrics();
-    }
     this.emit();
   }
 
@@ -240,12 +224,23 @@ export class RosettaController {
     this.renderer.dispose();
     this.nowPlayingRenderer.dispose();
     this.desktopLyricsRenderer.dispose();
-    this.transparentLyricsRenderer.dispose();
     void this.cache.close();
   }
 
   getSettings(): RosettaSettings {
     return normalizeSettings(this.settings);
+  }
+
+  adjustDesktopLyricsLineOffset(delta: number): number {
+    return this.desktopLyricsRenderer.adjustLineOffset(delta);
+  }
+
+  getDesktopLyricsLineOffset(): number {
+    return this.desktopLyricsRenderer.getLineOffset();
+  }
+
+  resetDesktopLyricsLineOffset(): number {
+    return this.desktopLyricsRenderer.resetLineOffset();
   }
 
   getSnapshot(): RosettaUiSnapshot {
@@ -305,25 +300,6 @@ export class RosettaController {
       statusText: this.statusText,
       loading: this.loading,
     });
-    this.transparentLyricsRenderer.setState({
-      enabled: this.settings.enabled,
-      settings: this.settings,
-      track: this.currentTrack,
-      result: this.currentResult,
-      statusText: this.statusText,
-      loading: this.loading,
-    });
-    if (!this.settings.enabled) {
-      void this.desktopLyricsRenderer.setEnabled(false);
-      void this.transparentLyricsRenderer.setEnabled(false);
-    } else {
-      if (this.settings.desktopLyricsEnabled) {
-        void this.enableTransparentLyrics();
-      }
-      if (this.settings.desktopLyricsPinned) {
-        void this.enableDesktopLyrics();
-      }
-    }
     if (!this.settings.enabled) {
       this.abortController?.abort();
       this.loading = false;
@@ -480,12 +456,6 @@ export class RosettaController {
       statusText: message,
     });
     this.desktopLyricsRenderer.setState({
-      enabled: this.settings.enabled,
-      settings: this.settings,
-      loading: false,
-      statusText: message,
-    });
-    this.transparentLyricsRenderer.setState({
       enabled: this.settings.enabled,
       settings: this.settings,
       loading: false,
@@ -872,51 +842,6 @@ export class RosettaController {
       loading: this.loading,
       statusText: this.statusText,
     });
-    this.transparentLyricsRenderer.setState({
-      enabled: this.settings.enabled,
-      settings: this.settings,
-      track: this.currentTrack,
-      result: this.currentResult,
-      loading: this.loading,
-      statusText: this.statusText,
-    });
-  }
-
-  private async enableDesktopLyrics(): Promise<void> {
-    const opened = await this.desktopLyricsRenderer.setEnabled(true);
-    if (opened) return;
-    this.settings = {
-      ...this.settings,
-      desktopLyricsPinned: false,
-    };
-    saveSettings(this.settings);
-    this.desktopLyricsRenderer.setState({
-      enabled: this.settings.enabled,
-      settings: this.settings,
-      track: this.currentTrack,
-      result: this.currentResult,
-      loading: this.loading,
-      statusText: "无法打开独立置顶窗口",
-    });
-    window.Spicetify?.showNotification?.(
-      "无法打开独立置顶窗口，请从 Rosetta 控制面板重新开启。",
-      true,
-    );
-    this.emit();
-  }
-
-  private async enableTransparentLyrics(): Promise<void> {
-    await this.transparentLyricsRenderer.setEnabled(true);
-  }
-
-  private handleDesktopLyricsClosed(): void {
-    if (!this.settings.desktopLyricsPinned) return;
-    this.settings = {
-      ...this.settings,
-      desktopLyricsPinned: false,
-    };
-    saveSettings(this.settings);
-    this.emit();
   }
 
   private async fetchNativeLines(

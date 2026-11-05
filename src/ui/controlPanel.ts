@@ -340,8 +340,8 @@ export class ControlPanel {
     );
     body.appendChild(
       this.switchRow(
-        "透明悬浮歌词",
-        "在 Spotify 界面上直接叠加无背景的纯歌词，显示上一句、当前句和后两句；没有时间轴时按播放进度自动滚动，当前句红色。",
+        "桌面悬浮歌词",
+        "打开原生透明置顶窗口，可跨应用显示上一句、当前句和后两句；没有时间轴时按播放进度自动滚动，当前句红色。",
         settings.desktopLyricsEnabled,
         (checked) =>
           void this.controller.updateSettings({
@@ -349,17 +349,49 @@ export class ControlPanel {
           }),
       ),
     );
-    body.appendChild(
-      this.switchRow(
-        "独立置顶窗口",
-        "可跨应用置顶，但 Chromium 强制使用不透明深色窗口背景；每次启动 Spotify 后需要重新开启。",
-        settings.desktopLyricsPinned,
-        (checked) =>
-          void this.controller.updateSettings({
-            desktopLyricsPinned: checked,
-          }),
+    const calibration = element("div", "rosetta-note");
+    calibration.appendChild(
+      element(
+        "div",
+        "rosetta-field-help",
+        "无时间轴歌词使用按行长度加权的估算滚动；发现偏差可手动校准，只影响显示，不会跳转播放。",
       ),
     );
+    const calibrationActions = element("div", "rosetta-actions");
+    const calibrationStatus = element(
+      "span",
+      "rosetta-field-help",
+      `当前校准：${this.controller.getDesktopLyricsLineOffset()} 句`,
+    );
+    const earlier = element(
+      "button",
+      "rosetta-button secondary",
+      "歌词提前一句",
+    );
+    earlier.type = "button";
+    earlier.addEventListener("click", () => {
+      const value = this.controller.adjustDesktopLyricsLineOffset(1);
+      calibrationStatus.textContent = `当前校准：${value} 句`;
+    });
+    const later = element(
+      "button",
+      "rosetta-button secondary",
+      "歌词延后一句",
+    );
+    later.type = "button";
+    later.addEventListener("click", () => {
+      const value = this.controller.adjustDesktopLyricsLineOffset(-1);
+      calibrationStatus.textContent = `当前校准：${value} 句`;
+    });
+    const reset = element("button", "rosetta-button secondary", "重置校准");
+    reset.type = "button";
+    reset.addEventListener("click", () => {
+      const value = this.controller.resetDesktopLyricsLineOffset();
+      calibrationStatus.textContent = `当前校准：${value} 句`;
+    });
+    calibrationActions.append(calibrationStatus, earlier, later, reset);
+    calibration.appendChild(calibrationActions);
+    body.appendChild(calibration);
 
     body.appendChild(element("h3", "rosetta-section-title", "歌词来源"));
     const providerRows: Array<

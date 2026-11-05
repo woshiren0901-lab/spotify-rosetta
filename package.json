@@ -1,6 +1,6 @@
 {
   "name": "spotify-rosetta",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "type": "module",
   "description": "A Spicetify extension that adds existing Chinese lyric translations inside Spotify and fills missing lyrics with verified same-source originals.",
@@ -9,7 +9,9 @@
     "fflate": "^0.8.2"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "npm run build:extension && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-overlay.ps1",
+    "build:extension": "node scripts/build.mjs",
+    "build:overlay": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-overlay.ps1",
     "dev": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

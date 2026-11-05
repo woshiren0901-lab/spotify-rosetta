@@ -9,10 +9,13 @@
 - Do not insert the Now Playing fallback when native lyric content is present;
   doing so creates duplicate lyrics.
 - Observe Spotify re-renders and re-place the project container idempotently.
-- Treat the transparent in-Spotify lyrics overlay as the default desktop-lyrics
-  surface. It must have no card background, mirror playback, and use display
-  estimation only for untimed lyrics. Keep Document Picture-in-Picture as a
-  separate optional mode because Chromium renders that host window opaque.
+- Treat the native WPF helper as the desktop-lyrics surface. It must have no
+  card background, use an always-on-top non-activating window, mirror playback,
+  and use display estimation only for untimed lyrics. Keep its HTTP bridge on
+  loopback with Spotify Origin and per-process token validation.
+- Register the helper for the current user's login because the Spotify renderer
+  cannot launch an executable directly. It stays hidden and loopback-only until
+  the desktop lyrics setting is enabled.
 - Never remove or directly replace React-owned native lyric nodes merely to test
   a fallback; DOM removal can destabilize Spotify. Verify no-native behavior with
   synthetic DOM fixtures and, when possible, a genuinely lyric-less track.
@@ -35,8 +38,7 @@ class-based selectors as fallbacks.
 npm run typecheck
 npm test
 npm run build
-Copy-Item .\dist\spotify-rosetta.js "$env:APPDATA\spicetify\Extensions\spotify-rosetta.js" -Force
-spicetify apply --no-restart
+pwsh -NoProfile -File .\scripts\install.ps1 -SkipBuild -NoRestart -Confirm:$false
 ```
 
 Restart Spotify after copying the bundle. Keep Spotify normal at completion:
@@ -45,6 +47,8 @@ Restart Spotify after copying the bundle. Keep Spotify normal at completion:
 - Never use `--remote-allow-origins=*`; it weakens the authenticated DevTools
   session and is unnecessary for the local CDP helper.
 - Verify the installed bundle hash matches `dist`.
+- Verify the installed helper hash matches `native\bin`, and that its helper
+  process listens only on `127.0.0.1:18573`.
 - Finish with Spotify running normally and port `9223` not listening.
 
 ## Test expectations

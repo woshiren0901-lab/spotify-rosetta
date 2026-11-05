@@ -6,7 +6,7 @@ import type {
 } from "../types";
 import {
   canSeekLyricLine,
-  estimatedLyricLineIndex,
+  estimatedLyricLineIndexForLines,
   hasReliableLyricsTimeline,
 } from "../core/lyricsTimeline";
 import { injectStyles } from "../ui/styles";
@@ -138,7 +138,6 @@ export class NowPlayingPanelRenderer {
       wordHighlight: true,
       showNowPlayingFallback: true,
       desktopLyricsEnabled: false,
-      desktopLyricsPinned: false,
       cacheLimit: 500,
       providers: {
         netease: true,
@@ -490,11 +489,12 @@ export class NowPlayingPanelRenderer {
         }
       }
     } else {
-      active = estimatedLyricLineIndex(
-        rows.length,
+      active = estimatedLyricLineIndexForLines(
+        resultLines,
         this.progressMs,
         this.state.track?.durationMs ?? 0,
       );
+      active = Math.min(rows.length - 1, Math.max(-1, active));
     }
     if (active === this.activeLine) return;
     this.activeLine = active;

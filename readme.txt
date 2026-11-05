@@ -1,4 +1,4 @@
-Spotify Rosetta v0.5.1
+Spotify Rosetta v0.5.2
 ======================
 
 Spotify Rosetta 是一个 Windows 自用 Spicetify Extension。它保留 Spotify
@@ -33,18 +33,18 @@ Spotify 完全没有歌词时，它还可以用同一录音版本已经存在的
 功能
 ----
 
-- 默认直接在 Spotify 右侧歌词和放大歌词页中显示；透明悬浮歌词和独立置顶
-  窗口均为可选项。
+- 默认直接在 Spotify 右侧歌词和放大歌词页中显示；跨应用桌面歌词为可选项。
 - Spotify 没有原生歌词区或明确显示暂无歌词时，会在右侧 Now Playing 面板
   中创建双语回退面板；歌曲本身没有中文译文时显示同源现成原文。原生歌词
   存在时不会重复显示。
 - Rosetta 歌词区固定在歌曲标题与艺人下方、“关于艺人”上方，避免被长艺人
   简介推到可视区域之外；歌词使用更接近 Spotify 原生歌词的大字号排版。
-- 可在控制面板开启真正透明的窗口内悬浮歌词：没有卡片或文字框背景，只显示
-  上一句、当前句和后两句；当前句为红色，其余白色。没有可靠演唱时间轴时，
-  会按歌曲播放进度估算当前行并自动滚动，但不会开放点击跳转。
-- 可另外开启独立置顶窗口以跨应用查看歌词；由于 Chromium 的 Picture-in-
-  Picture 宿主固定使用不透明深色背景，该模式无法做到透明。
+- 可在控制面板开启真正透明的 Windows 原生置顶歌词窗口：没有卡片或文字框
+  背景，可跨应用显示上一句、当前句和后两句；当前句为红色，其余白色。原生
+  窗口使用独立进程和非激活置顶方式，不会抢占 Spotify 或当前应用的焦点。
+- 没有可靠演唱时间轴时，原生桌面歌词会按歌曲播放进度估算当前行并自动滚动，
+  估算会按文本行长度加权；仍可在 Rosetta 设置中按歌曲提前或延后校准。该模式
+  不会开放点击跳转，只有真实时间轴启用精确跳转。
 - 原生歌词、Now Playing 回退歌词和桌面歌词均支持点击或键盘跳转到对应
   时间点；没有有效行时间轴的来源不会提供虚假跳转。
 - Spotify 没有原生歌词但 Provider 找到了现成译文时，始终把该 Provider
@@ -75,6 +75,7 @@ Spotify 完全没有歌词时，它还可以用同一录音版本已经存在的
 - Spotify 官方桌面安装版。Microsoft Store 版通常不能使用 Spicetify。
 - Node.js 18 或更高版本，以及 npm。
 - Spicetify。安装脚本会检测并在缺失时尝试安装。
+- Windows .NET Framework 4.8；发布包已包含预编译的原生桌面歌词组件。
 - 本机已验证基础版本为 Spotify 1.3.6.1921。
 
 安装
@@ -99,6 +100,8 @@ Spotify 完全没有歌词时，它还可以用同一录音版本已经存在的
 - 安装/验证 Spicetify；
 - 首次运行时执行 spicetify backup apply enable-devtools；
 - 将 dist\spotify-rosetta.js 复制到 Spicetify 的 Extensions 目录；
+- 将 native\bin\SpotifyRosettaOverlay.exe 安装到用户本地目录，并注册仅在
+  当前用户登录时启动的透明置顶组件；
 - 执行 spicetify config extensions spotify-rosetta.js 和 spicetify apply；
 - 默认重新打开 Spotify。
 
@@ -111,11 +114,12 @@ Spotify 完全没有歌词时，它还可以用同一录音版本已经存在的
 
 - 左键：立即开启或关闭译文注入。
 - 右键：打开设置、手动选源、来源状态、缓存管理和关于页面。
-- 设置中的“透明悬浮歌词”会直接在 Spotify 窗口内显示无背景歌词，并随歌曲
-  播放自动滚动；无真实时间轴时只做展示估算，歌词行不会响应点击跳转。
-- “独立置顶窗口”使用 Chrome Document Picture-in-Picture，可跨应用置顶，
-  但浏览器固定提供不透明深色背景。浏览器要求用户手势才能打开 PiP，因此
-  每次启动 Spotify 后都需要在 Rosetta 控制面板点击一次开关。
+- 设置中的“桌面悬浮歌词”会打开 Windows 原生透明置顶窗口，可覆盖在其他
+  应用上方。窗口只显示上一句、当前句和后两句，并随歌曲播放自动滚动。
+- 歌词区域没有卡片背景；无真实时间轴时只做展示估算，不响应点击跳转。
+- 没有时间轴时，设置中的“歌词提前一句 / 歌词延后一句”可修正自动滚动误差，
+  校准按 Spotify Track ID 保存在本机；只改变显示，不改变播放位置。
+- 原生窗口支持拖动顶部空白区、右键重新居中、锁定位置、隐藏或退出。
 - 手动选定某个来源后，该选择会按 Spotify track ID 永久记忆。
 - 清除全部缓存会同时删除自动结果和手动选择，操作需要再次点击确认。
 
@@ -206,6 +210,11 @@ LyricsTranslate 搜索结果读取“Japanese → Chinese”等原语言。两�
 - 本软件仅保存运行所需的歌词、译文、时间轴、Provider 和匹配元数据。
 - 本地导入内容不会上传到 Spotify、歌词平台或本项目维护者。
 - 不收集遥测，不接入分析服务，不上传 Spotify 凭据。
+- 歌词只发送到本机 127.0.0.1 上的原生组件，并通过随机会话令牌和 Spotify
+  页面 Origin 校验，不经过远端服务器。
+- 注册当前用户登录启动是为了让本机 helper 在后台待命。Spotify 页面不能
+  直接启动 exe，因此 helper 必须在用户打开桌面歌词前已经运行；它不联网，
+  未启用桌面歌词时只保持隐藏并监听回环端口。
 - 查询第三方歌词平台时会发送歌曲标题、艺人、专辑和时长。
 - 缓存仅保留本机，不随项目分发。
 - 项目不附带抓取到的歌词或译文。使用者自行承担第三方服务可用性和内容
@@ -226,11 +235,13 @@ LyricsTranslate 搜索结果读取“Japanese → Chinese”等原语言。两�
   npm run build
   npm run dev
 
-构建产物为单个文件：
+构建产物包括 Spicetify 扩展和原生桌面窗口：
 
   dist\spotify-rosetta.js
+  native\bin\SpotifyRosettaOverlay.exe
 
-开发时修改代码后，将构建产物复制到 Spicetify Extensions 目录，再执行：
+开发时修改代码后，重新运行 npm run build，将扩展复制到 Spicetify Extensions
+目录，并重新运行安装脚本以更新用户目录中的原生组件，再执行：
 
   spicetify apply
 
@@ -289,7 +300,7 @@ Spotify 更新后
   spicetify restore backup apply。
 - 手动搜索按钮显示“不可用”或没有候选：表示该来源没有返回可读取的歌词，
   或因网络/原生歌词缺失而加载失败；请换一个来源或点击“重新搜索”。
-- 切歌后歌词没有立即更新：v0.5.1 会在一秒内轮询曲目并在切歌时关闭与旧歌
+- 切歌后歌词没有立即更新：v0.5.2 会在一秒内轮询曲目并在切歌时关闭与旧歌
   绑定的手动选源页面；旧版缺少 Track ID 绑定的手动缓存会自动失效。
 
 许可证
@@ -353,4 +364,8 @@ https://www.gnu.org/licenses/gpl-3.0.txt
     （https://github.com/abesanets/spicetify-sidebar-lyrics）：Spotify Now
     Playing 面板中创建独立歌词区域的思路参考；该仓库未声明 LICENSE，本项目
     仅参考公开行为与 DOM 生命周期，不复制其源码。
+19. Microsoft .NET Framework 与 Windows Presentation Foundation（WPF）
+    （https://dotnet.microsoft.com/）：原生透明置顶窗口、非激活窗口样式和
+    本机 HTTP 桥接运行环境；属于 Windows/.NET Framework 系统组件，本项目
+    不随发布包再分发其运行时。
 

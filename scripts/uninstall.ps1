@@ -1,4 +1,4 @@
-[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
+﻿[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [switch]$RestoreSpotify
 )
@@ -7,6 +7,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $ExtensionName = "spotify-rosetta.js"
+$OverlayInstallRoot = Join-Path $env:LOCALAPPDATA "SpotifyRosetta"
+$OverlayProtocolRoot = "HKCU:\Software\Classes\spotify-rosetta-overlay"
+$OverlayRunKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+$OverlayRunValue = "SpotifyRosettaOverlay"
 $SpicetifyExe = Join-Path $env:LOCALAPPDATA "spicetify\spicetify.exe"
 $SpicetifyWingetLink = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links\spicetify.exe"
 $SpicetifyWingetPackages = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"
@@ -32,6 +36,28 @@ $spicetify = if (Test-Path -LiteralPath $SpicetifyExe -PathType Leaf) {
 
 if (Get-Process -Name Spotify -ErrorAction SilentlyContinue) {
   throw "请先完全退出 Spotify，然后重新运行卸载脚本。"
+}
+
+if ($PSCmdlet.ShouldProcess("Spotify Rosetta 桌面歌词组件", "停止并移除原生组件")) {
+  Get-Process -Name SpotifyRosettaOverlay -ErrorAction SilentlyContinue |
+    Stop-Process -Force
+  if (Test-Path -LiteralPath $OverlayProtocolRoot) {
+    Remove-Item -LiteralPath $OverlayProtocolRoot -Recurse -Force
+  }
+  if (Test-Path -LiteralPath $OverlayRunKey) {
+    Remove-ItemProperty -Path $OverlayRunKey -Name $OverlayRunValue `
+      -ErrorAction SilentlyContinue
+  }
+  if (Test-Path -LiteralPath $OverlayInstallRoot) {
+    $resolvedOverlayRoot = (Resolve-Path -LiteralPath $OverlayInstallRoot).Path
+    $expectedOverlayRoot = [IO.Path]::GetFullPath(
+      (Join-Path $env:LOCALAPPDATA "SpotifyRosetta")
+    )
+    if ($resolvedOverlayRoot -ne $expectedOverlayRoot) {
+      throw "拒绝删除非预期路径：$resolvedOverlayRoot"
+    }
+    Remove-Item -LiteralPath $resolvedOverlayRoot -Recurse -Force
+  }
 }
 
 foreach ($root in $configRoots) {

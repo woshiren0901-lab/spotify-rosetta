@@ -314,7 +314,6 @@ export class NativeLyricsRenderer {
       wordHighlight: true,
       showNowPlayingFallback: true,
       desktopLyricsEnabled: false,
-      desktopLyricsPinned: false,
       cacheLimit: 500,
       providers: {
         netease: true,

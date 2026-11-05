@@ -22,11 +22,11 @@ projects.
 - Preserve Spotify's native lyrics and scrolling when the native lyrics surface
   exists. Use the custom Now Playing section only when Spotify has no lyrics
   surface or shows an empty/no-lyrics state.
-- Keep the transparent in-Spotify desktop lyrics overlay limited to the
-  previous/current/next-two lines and synchronized with playback. Untimed
-  lyrics may advance by estimated progress but must never become seekable.
-  Keep the optional Document Picture-in-Picture mode explicitly marked as an
-  opaque Chromium window.
+- Keep the desktop lyrics UI in the native WPF helper so it is genuinely
+  transparent, non-activating, and topmost across applications. The helper must
+  listen only on loopback, validate the Spotify page Origin plus a per-process
+  token, and never receive data over the network. Untimed lyrics may advance by
+  estimated progress but must never become seekable.
 - Treat recordings, language versions, covers, live versions, and remixes as
   distinct identities. A correct title alone is not a match.
 - Keep `readme.txt`'s final section titled `现有平台与开源项目`; no content may
