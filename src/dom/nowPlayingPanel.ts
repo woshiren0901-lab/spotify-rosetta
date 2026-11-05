@@ -4,7 +4,11 @@ import type {
   RosettaSettings,
   TrackInfo,
 } from "../types";
-import { canSeekLyricLine } from "../core/lyricsTimeline";
+import {
+  canSeekLyricLine,
+  estimatedLyricLineIndex,
+  hasReliableLyricsTimeline,
+} from "../core/lyricsTimeline";
 import { injectStyles } from "../ui/styles";
 
 const PANEL_ATTRIBUTE = "data-rosetta-now-playing";
@@ -134,6 +138,7 @@ export class NowPlayingPanelRenderer {
       wordHighlight: true,
       showNowPlayingFallback: true,
       desktopLyricsEnabled: false,
+      desktopLyricsPinned: false,
       cacheLimit: 500,
       providers: {
         netease: true,
@@ -472,11 +477,24 @@ export class NowPlayingPanelRenderer {
       ...container.querySelectorAll<HTMLElement>(".rosetta-now-playing-line"),
     ];
     let active = -1;
-    for (let index = 0; index < rows.length; index += 1) {
-      const startMs = Number(rows[index]?.dataset.startMs);
-      if (Number.isFinite(startMs) && startMs > 0 && startMs <= this.progressMs) {
-        active = index;
+    const resultLines = this.state.result?.lines ?? [];
+    if (hasReliableLyricsTimeline(resultLines)) {
+      for (let index = 0; index < rows.length; index += 1) {
+        const startMs = Number(rows[index]?.dataset.startMs);
+        if (
+          Number.isFinite(startMs) &&
+          startMs > 0 &&
+          startMs <= this.progressMs
+        ) {
+          active = index;
+        }
       }
+    } else {
+      active = estimatedLyricLineIndex(
+        rows.length,
+        this.progressMs,
+        this.state.track?.durationMs ?? 0,
+      );
     }
     if (active === this.activeLine) return;
     this.activeLine = active;

@@ -17,18 +17,40 @@ function hasSyntheticTimeline(lines: LyricsLine[]): boolean {
   );
 }
 
+export function hasReliableLyricsTimeline(lines: LyricsLine[]): boolean {
+  return (
+    lines.length > 0 &&
+    !hasSyntheticTimeline(lines) &&
+    lines.some(
+      (line) => Number.isFinite(line.startMs) && line.startMs > 0,
+    )
+  );
+}
+
+export function estimatedLyricLineIndex(
+  lineCount: number,
+  progressMs: number,
+  durationMs: number,
+): number {
+  if (lineCount <= 0) return -1;
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 0;
+  const progress = Math.max(0, Math.min(durationMs, progressMs));
+  return Math.min(
+    lineCount - 1,
+    Math.max(0, Math.floor((progress / durationMs) * lineCount)),
+  );
+}
+
 export function canSeekLyrics(result: ProviderResult | undefined): boolean {
   if (
     !result ||
     result.fidelity === "unsynced" ||
     !result.lines.length ||
-    hasSyntheticTimeline(result.lines)
+    !hasReliableLyricsTimeline(result.lines)
   ) {
     return false;
   }
-  return result.lines.some(
-    (line) => Number.isFinite(line.startMs) && line.startMs >= 0,
-  );
+  return true;
 }
 
 export function canSeekLyricLine(

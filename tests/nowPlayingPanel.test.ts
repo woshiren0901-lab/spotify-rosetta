@@ -287,4 +287,57 @@ describe("Now Playing fallback panel", () => {
     expect(seek).not.toHaveBeenCalled();
     renderer.dispose();
   });
+
+  it("auto-scrolls untimed fallback lyrics without seeking", async () => {
+    document.body.innerHTML = `
+      <aside class="main-nowPlayingView-panel">
+        <div class="main-nowPlayingView-contextItemInfo">Track info</div>
+        <div class="main-nowPlayingView-section">Artist info</div>
+      </aside>
+    `;
+    const seek = vi.fn();
+    window.Spicetify = { Player: { seek } } as never;
+    const renderer = new NowPlayingPanelRenderer(document);
+    renderer.start();
+    renderer.setState({
+      enabled: true,
+      settings: DEFAULT_SETTINGS,
+      track: {
+        id: "track",
+        uri: "spotify:track:track",
+        title: "Song",
+        artists: ["Artist"],
+        album: "Album",
+        durationMs: 100_000,
+      },
+      result: {
+        ...makeResult(),
+        fidelity: "original-only",
+        lines: Array.from({ length: 10 }, (_, index) => ({
+          startMs: 0,
+          original: `Untimed line ${index + 1}`,
+        })),
+      },
+      statusText: "现成原文歌词",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    renderer.setProgress(55_000);
+    const active = document.querySelector(
+      ".rosetta-now-playing-line.is-active",
+    );
+    expect(active?.textContent).toContain("Untimed line 6");
+    const rows = [
+      ...document.querySelectorAll<HTMLElement>(
+        ".rosetta-now-playing-line",
+      ),
+    ];
+    expect(rows.every((row) => !row.classList.contains("is-seekable"))).toBe(
+      true,
+    );
+    rows[5]?.click();
+    expect(seek).not.toHaveBeenCalled();
+    renderer.dispose();
+  });
 });

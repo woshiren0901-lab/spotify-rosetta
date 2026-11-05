@@ -22,9 +22,11 @@ projects.
 - Preserve Spotify's native lyrics and scrolling when the native lyrics surface
   exists. Use the custom Now Playing section only when Spotify has no lyrics
   surface or shows an empty/no-lyrics state.
-- Keep the optional Document Picture-in-Picture desktop lyrics window
-  transparent, limited to the previous/current/next-two lines, synchronized
-  with playback, and seekable only when the source has a real line timeline.
+- Keep the transparent in-Spotify desktop lyrics overlay limited to the
+  previous/current/next-two lines and synchronized with playback. Untimed
+  lyrics may advance by estimated progress but must never become seekable.
+  Keep the optional Document Picture-in-Picture mode explicitly marked as an
+  opaque Chromium window.
 - Treat recordings, language versions, covers, live versions, and remixes as
   distinct identities. A correct title alone is not a match.
 - Keep `readme.txt`'s final section titled `现有平台与开源项目`; no content may

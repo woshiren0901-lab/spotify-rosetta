@@ -340,12 +340,23 @@ export class ControlPanel {
     );
     body.appendChild(
       this.switchRow(
-        "桌面歌词",
-        "打开独立的置顶歌词窗口：全透明无卡片，只显示上一句、当前句和后两句；当前句红色，其余白色。",
+        "透明悬浮歌词",
+        "在 Spotify 界面上直接叠加无背景的纯歌词，显示上一句、当前句和后两句；没有时间轴时按播放进度自动滚动，当前句红色。",
         settings.desktopLyricsEnabled,
         (checked) =>
           void this.controller.updateSettings({
             desktopLyricsEnabled: checked,
+          }),
+      ),
+    );
+    body.appendChild(
+      this.switchRow(
+        "独立置顶窗口",
+        "可跨应用置顶，但 Chromium 强制使用不透明深色窗口背景；每次启动 Spotify 后需要重新开启。",
+        settings.desktopLyricsPinned,
+        (checked) =>
+          void this.controller.updateSettings({
+            desktopLyricsPinned: checked,
           }),
       ),
     );

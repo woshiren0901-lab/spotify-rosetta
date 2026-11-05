@@ -4,7 +4,11 @@ import type {
   RosettaSettings,
   TrackInfo,
 } from "../types";
-import { canSeekLyricLine } from "../core/lyricsTimeline";
+import {
+  canSeekLyricLine,
+  estimatedLyricLineIndex,
+  hasReliableLyricsTimeline,
+} from "../core/lyricsTimeline";
 
 export interface DesktopLyricsRendererState {
   enabled: boolean;
@@ -14,6 +18,8 @@ export interface DesktopLyricsRendererState {
   statusText?: string;
   loading?: boolean;
 }
+
+export type DesktopLyricsMode = "overlay" | "pinned";
 
 export interface DesktopLyricsRow {
   offset: -1 | 0 | 1 | 2;
@@ -40,6 +46,18 @@ function activeLineIndex(lines: LyricsLine[], progressMs: number): number {
     }
   }
   return active;
+}
+
+function displayLineIndex(
+  lines: LyricsLine[],
+  progressMs: number,
+  durationMs: number,
+): number {
+  if (!lines.length) return -1;
+  if (hasReliableLyricsTimeline(lines)) {
+    return activeLineIndex(lines, progressMs);
+  }
+  return estimatedLyricLineIndex(lines.length, progressMs, durationMs);
 }
 
 export function buildDesktopLyricsRows(
@@ -78,6 +96,7 @@ export class DesktopLyricsRenderer {
       wordHighlight: true,
       showNowPlayingFallback: true,
       desktopLyricsEnabled: false,
+      desktopLyricsPinned: false,
       cacheLimit: 500,
       providers: {
         netease: true,
@@ -95,9 +114,19 @@ export class DesktopLyricsRenderer {
   private activeLine = -1;
   private window?: Window;
   private root?: HTMLElement;
+  private style?: HTMLStyleElement;
   private closingFromCode = false;
 
-  constructor(private readonly onClose?: () => void) {}
+  constructor(
+    private readonly onClose?: () => void,
+    private readonly mode: DesktopLyricsMode = "pinned",
+  ) {}
+
+  private isSurfaceEnabled(): boolean {
+    return this.mode === "overlay"
+      ? this.state.settings.desktopLyricsEnabled
+      : this.state.settings.desktopLyricsPinned;
+  }
 
   setState(state: DesktopLyricsRendererState): void {
     const trackChanged = state.track?.id !== this.state.track?.id;
@@ -106,7 +135,7 @@ export class DesktopLyricsRenderer {
     this.state = state;
     if (trackChanged) this.progressMs = 0;
     if (trackChanged || resultChanged) this.activeLine = -1;
-    if (!state.enabled || !state.settings.desktopLyricsEnabled) {
+    if (!state.enabled || !this.isSurfaceEnabled()) {
       this.close(false);
       return;
     }
@@ -119,7 +148,10 @@ export class DesktopLyricsRenderer {
   }
 
   isOpen(): boolean {
-    return Boolean(this.window && !this.window.closed);
+    if (this.mode === "overlay") {
+      return Boolean(this.root?.isConnected);
+    }
+    return Boolean(this.window && !this.window.closed && this.root?.isConnected);
   }
 
   async setEnabled(enabled: boolean): Promise<boolean> {
@@ -137,6 +169,10 @@ export class DesktopLyricsRenderer {
   private async open(): Promise<boolean> {
     if (this.isOpen()) {
       this.render();
+      return true;
+    }
+    if (this.mode === "overlay") {
+      this.attachWindow(window);
       return true;
     }
     const api = window.documentPictureInPicture;
@@ -157,44 +193,72 @@ export class DesktopLyricsRenderer {
   }
 
   private attachWindow(pipWindow: Window): void {
+    const pinned = this.mode === "pinned";
     this.window = pipWindow;
     this.closingFromCode = false;
-    pipWindow.document.title = "Spotify Rosetta 桌面歌词";
-    pipWindow.document.documentElement.style.cssText =
-      "margin:0;width:100%;height:100%;overflow:hidden;background:transparent;color-scheme:dark;";
+    if (pinned) {
+      pipWindow.document.title = "Spotify Rosetta 桌面歌词";
+      pipWindow.document.documentElement.style.cssText =
+        "margin:0;width:100%;height:100%;overflow:hidden;background:transparent;color-scheme:dark;";
+    }
     const style = pipWindow.document.createElement("style");
+    style.id = `rosetta-desktop-lyrics-style-${this.mode}`;
     style.textContent = `
-      html, body {
-        margin: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background: transparent !important;
-      }
-      body {
-        font-family: ${JSON.stringify(
-          getComputedStyle(document.body).fontFamily ||
-            "Spotify Mix, Circular, Segoe UI, sans-serif",
-        )};
+      ${
+        pinned
+          ? `
+        html, body {
+          margin: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          background: transparent !important;
+        }
+      `
+          : ""
       }
       #rosetta-desktop-lyrics {
         box-sizing: border-box;
         display: flex;
-        width: 100%;
-        height: 100%;
         flex-direction: column;
         justify-content: center;
-        padding: 8px 18px;
         background: transparent !important;
+        color: #fff;
+        font-family: ${JSON.stringify(
+          getComputedStyle(document.body).fontFamily ||
+            "Spotify Mix, Circular, Segoe UI, sans-serif",
+        )};
+        pointer-events: none;
+        ${
+          pinned
+            ? `
+          width: 100%;
+          height: 100%;
+          padding: 8px 18px;
+        `
+            : `
+          position: fixed;
+          left: 50%;
+          bottom: 104px;
+          z-index: 2147483647;
+          width: min(720px, calc(100vw - 40px));
+          max-height: calc(100vh - 150px);
+          transform: translateX(-50%);
+          text-align: center;
+        `
+        }
       }
       .rosetta-desktop-line {
-        padding: 9px 2px;
+        padding: 7px 2px;
         color: #fff;
         cursor: default;
         outline: none;
+        pointer-events: none;
+        text-shadow: 0 2px 10px rgba(0,0,0,.92), 0 0 3px rgba(0,0,0,.88);
       }
       .rosetta-desktop-line.is-seekable {
         cursor: pointer;
+        pointer-events: auto;
       }
       .rosetta-desktop-line.is-seekable:hover,
       .rosetta-desktop-line.is-seekable:focus-visible {
@@ -221,20 +285,34 @@ export class DesktopLyricsRenderer {
         color: #ff4056;
       }
     `;
-    pipWindow.document.head.replaceChildren(style);
+    if (pinned) {
+      pipWindow.document.head.replaceChildren(style);
+    } else {
+      pipWindow.document.head.appendChild(style);
+    }
     const root = pipWindow.document.createElement("main");
     root.id = "rosetta-desktop-lyrics";
-    pipWindow.document.body.replaceChildren(root);
+    root.setAttribute("role", "region");
+    root.setAttribute("aria-label", "Spotify Rosetta 透明悬浮歌词");
+    if (pinned) {
+      pipWindow.document.body.replaceChildren(root);
+    } else {
+      pipWindow.document.body.appendChild(root);
+    }
+    this.style = style;
     this.root = root;
-    pipWindow.addEventListener(
-      "pagehide",
-      () => {
-        this.window = undefined;
-        this.root = undefined;
-        if (!this.closingFromCode) this.onClose?.();
-      },
-      { once: true },
-    );
+    if (pinned) {
+      pipWindow.addEventListener(
+        "pagehide",
+        () => {
+          this.window = undefined;
+          this.root = undefined;
+          this.style = undefined;
+          if (!this.closingFromCode) this.onClose?.();
+        },
+        { once: true },
+      );
+    }
     this.activeLine = -1;
     this.render(true);
   }
@@ -244,16 +322,17 @@ export class DesktopLyricsRenderer {
       !this.window ||
       !this.root ||
       !this.state.enabled ||
-      !this.state.settings.desktopLyricsEnabled
+      !this.isSurfaceEnabled()
     ) {
       return;
     }
 
     const lines = (this.state.result?.lines ?? []).filter(visibleLine);
-    const active =
-      this.state.result?.fidelity === "unsynced"
-        ? 0
-        : activeLineIndex(lines, this.progressMs);
+    const active = displayLineIndex(
+      lines,
+      this.progressMs,
+      this.state.track?.durationMs ?? 0,
+    );
     if (!force && active === this.activeLine && !this.state.loading) return;
     this.activeLine = active;
     this.root.replaceChildren();
@@ -306,11 +385,19 @@ export class DesktopLyricsRenderer {
   }
 
   private close(suppressCallback: boolean): void {
-    const pipWindow = this.window ?? window.documentPictureInPicture?.window;
+    const pinned = this.mode === "pinned";
+    const pipWindow = pinned
+      ? this.window ?? window.documentPictureInPicture?.window
+      : undefined;
+    const root = this.root;
+    const style = this.style;
     this.closingFromCode = suppressCallback;
     this.window = undefined;
     this.root = undefined;
+    this.style = undefined;
     this.activeLine = -1;
-    if (pipWindow && !pipWindow.closed) pipWindow.close();
+    root?.remove();
+    style?.remove();
+    if (pinned && pipWindow && !pipWindow.closed) pipWindow.close();
   }
 }

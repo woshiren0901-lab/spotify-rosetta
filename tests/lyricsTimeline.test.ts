@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   canSeekLyricLine,
   canSeekLyrics,
+  estimatedLyricLineIndex,
+  hasReliableLyricsTimeline,
 } from "../src/core/lyricsTimeline";
 import type { ProviderResult } from "../src/types";
 
@@ -62,5 +64,24 @@ describe("lyrics timeline seeking", () => {
         translation: "无效",
       }),
     ).toBe(false);
+  });
+
+  it("rejects a whole lyrics timeline that only contains zero", () => {
+    const zeroTimed = result({
+      fidelity: "original-only",
+      lines: [
+        { startMs: 0, original: "One" },
+        { startMs: 0, original: "Two" },
+        { startMs: 0, original: "Three" },
+      ],
+    });
+    expect(hasReliableLyricsTimeline(zeroTimed.lines)).toBe(false);
+    expect(canSeekLyrics(zeroTimed)).toBe(false);
+  });
+
+  it("estimates a display-only line from playback progress", () => {
+    expect(estimatedLyricLineIndex(10, 0, 100_000)).toBe(0);
+    expect(estimatedLyricLineIndex(10, 50_000, 100_000)).toBe(5);
+    expect(estimatedLyricLineIndex(10, 100_000, 100_000)).toBe(9);
   });
 });

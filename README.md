@@ -8,7 +8,8 @@ Spotify Rosetta is a GPL-3.0 Spicetify extension for Windows that adds existing 
 - Supports line-level and word-level translations when available.
 - Shows verified provider originals in the Now Playing fallback when Spotify has no lyrics and the song itself has no Chinese translation.
 - Places the fallback directly below track metadata and above artist biography, with large native-lyrics-style typography.
-- Opens an optional transparent, always-on-top desktop lyrics window showing the previous line, current line, and next two lines. Because the browser requires a user gesture, it must be enabled again after each Spotify launch.
+- Shows an optional truly transparent in-Spotify lyrics overlay with the previous line, current line, and next two lines. Untimed lyrics advance by playback progress but never become clickable.
+- Can additionally open a separate always-on-top Document Picture-in-Picture lyrics window. Chromium does not support transparency for that window type, so it keeps an opaque dark background.
 - Supports click-to-seek on native lyric translations, Now Playing fallback lines, and desktop lyric lines.
 - Uses exact ISRC and metadata identity checks, then verifies the source lyric sequence.
 - Supports NetEase, QQ Music, Musixmatch, LyricsTranslate, curated bilingual web pages, and local LRC/JSON imports.

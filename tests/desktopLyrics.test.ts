@@ -75,7 +75,7 @@ describe("desktop lyrics", () => {
       enabled: true,
       settings: {
         ...DEFAULT_SETTINGS,
-        desktopLyricsEnabled: true,
+        desktopLyricsPinned: true,
       },
       track: {
         id: "track",
@@ -127,7 +127,7 @@ describe("desktop lyrics", () => {
       enabled: true,
       settings: {
         ...DEFAULT_SETTINGS,
-        desktopLyricsEnabled: true,
+        desktopLyricsPinned: true,
       },
       track: {
         id: "track",
@@ -163,5 +163,109 @@ describe("desktop lyrics", () => {
     rows[0]?.click();
     expect(seek).not.toHaveBeenCalled();
     renderer.dispose();
+  });
+
+  it("auto-scrolls untimed lyrics without enabling seeking", async () => {
+    const pipDocument = document.implementation.createHTMLDocument(
+      "Desktop lyrics",
+    );
+    const pipWindow = {
+      closed: false,
+      document: pipDocument,
+      addEventListener: vi.fn(),
+      close: vi.fn(),
+    } as unknown as Window;
+    Object.defineProperty(window, "documentPictureInPicture", {
+      configurable: true,
+      value: { requestWindow: vi.fn(async () => pipWindow) },
+    });
+    const seek = vi.fn();
+    window.Spicetify = { Player: { seek } } as never;
+    const renderer = new DesktopLyricsRenderer();
+    renderer.setState({
+      enabled: true,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        desktopLyricsPinned: true,
+      },
+      track: {
+        id: "track",
+        uri: "spotify:track:track",
+        title: "Song",
+        artists: ["Artist"],
+        album: "Album",
+        durationMs: 100_000,
+      },
+      result: {
+        ...result(),
+        fidelity: "original-only",
+        lines: Array.from({ length: 10 }, (_, index) => ({
+          startMs: 0,
+          original: `Untimed line ${index + 1}`,
+        })),
+      },
+    });
+
+    expect(await renderer.setEnabled(true)).toBe(true);
+    renderer.setProgress(55_000);
+    const rows = [
+      ...pipDocument.querySelectorAll<HTMLElement>(
+        ".rosetta-desktop-line",
+      ),
+    ];
+    expect(rows[1]?.classList.contains("is-active")).toBe(true);
+    expect(rows[1]?.textContent).toContain("Untimed line 6");
+    expect(rows.every((row) => !row.classList.contains("is-seekable"))).toBe(
+      true,
+    );
+    rows[1]?.click();
+    expect(seek).not.toHaveBeenCalled();
+    renderer.dispose();
+  });
+
+  it("renders a truly transparent in-page overlay", async () => {
+    const renderer = new DesktopLyricsRenderer(undefined, "overlay");
+    renderer.setState({
+      enabled: true,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        desktopLyricsEnabled: true,
+      },
+      track: {
+        id: "track",
+        uri: "spotify:track:track",
+        title: "Song",
+        artists: ["Artist"],
+        album: "Album",
+        durationMs: 100_000,
+      },
+      result: {
+        ...result(),
+        fidelity: "original-only",
+        lines: Array.from({ length: 10 }, (_, index) => ({
+          startMs: 0,
+          original: `Overlay line ${index + 1}`,
+        })),
+      },
+    });
+
+    expect(await renderer.setEnabled(true)).toBe(true);
+    renderer.setProgress(55_000);
+    const root = document.querySelector<HTMLElement>(
+      "#rosetta-desktop-lyrics",
+    );
+    expect(root).not.toBeNull();
+    expect(root?.style.background).toBe("");
+    expect(
+      document.querySelector<HTMLStyleElement>(
+        "#rosetta-desktop-lyrics-style-overlay",
+      )?.textContent,
+    ).toContain("background: transparent !important");
+    expect(root?.style.pointerEvents).toBe("");
+    expect(root?.querySelector(".is-active")?.textContent).toContain(
+      "Overlay line 6",
+    );
+    renderer.dispose();
+    expect(document.querySelector("#rosetta-desktop-lyrics")).toBeNull();
   });
 });

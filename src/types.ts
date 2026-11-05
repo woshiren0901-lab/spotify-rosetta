@@ -134,6 +134,7 @@ export interface RosettaSettings {
   wordHighlight: boolean;
   showNowPlayingFallback: boolean;
   desktopLyricsEnabled: boolean;
+  desktopLyricsPinned: boolean;
   cacheLimit: number;
   providers: ProviderSettings;
 }
